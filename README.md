@@ -1,1 +1,0 @@
-# ORG-NICA-APP
