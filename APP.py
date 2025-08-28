@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import io, os, json, time
+import io, os, json, time, tempfile
 from pathlib import Path
 import streamlit as st
 
@@ -60,10 +60,23 @@ def storage_list(folder_path: str):
         return []
 
 def storage_upload(dst_path: str, data_bytes: bytes, content_type: str):
-    return supa.storage.from_(SUPABASE_BUCKET).upload(
-        dst_path, io.BytesIO(data_bytes),
-        file_options={"content-type": content_type, "cache-control": "3600", "upsert": "true"}
-    )
+    # Sube usando archivo temporal (el SDK espera ruta, no BytesIO)
+    with tempfile.NamedTemporaryFile(delete=False) as tmp:
+        tmp.write(data_bytes)
+        tmp.flush()
+        tmp_path = tmp.name
+    try:
+        # En file_options el SDK acepta "content-type" (con guión)
+        return supa.storage.from_(SUPABASE_BUCKET).upload(
+            dst_path,
+            tmp_path,
+            {"content-type": content_type, "cache-control": "3600", "upsert": "true"},
+        )
+    finally:
+        try:
+            os.remove(tmp_path)
+        except Exception:
+            pass
 
 def storage_download(src_path: str) -> bytes | None:
     try:
@@ -163,8 +176,11 @@ tabs = st.tabs([
     "🎥 Videos (MP4 o enlace)", "🎧 Audios (MP3)"
 ])
 
-# -------- UI helper: listado (Abrir/Descargar + Eliminar/Renombrar) --------
-def render_list(bucket_name: str, tema: str, exts: set[str]):
+# -------- UI helper: listado (link + eliminar/renombrar + embed opcional) --------
+def render_list(bucket_name: str, tema: str, exts: set[str], media: str | None = None):
+    """
+    media: None | 'video' | 'audio'  -> para embeber además del link.
+    """
     can_edit = st.session_state["can_edit"]
     folder = bucket_join(topic_prefix(tema), bucket_name)
     objs = storage_list(folder)
@@ -187,6 +203,10 @@ def render_list(bucket_name: str, tema: str, exts: set[str]):
         with cols[0]:
             st.write(f"**{title}**")
             st.caption(name)
+            if url and media == "video":
+                st.video(url)
+            elif url and media == "audio":
+                st.audio(url)
         with cols[1]:
             if url:
                 st.markdown(f"[Abrir / Descargar]({url})")
@@ -273,14 +293,14 @@ with tabs[2]:
             if url.strip():
                 meta = read_meta(tema)
                 add_link(meta, titulo, url)
-                write_meta(ema:=tema, meta)  # noqa
+                write_meta(tema, meta)  # <-- corregido
                 st.success("Enlace agregado.")
                 st.rerun()
             else:
                 st.error("Pegá una URL válida.")
 
     # Mostrar material
-    render_list("videos", tema, exts={".mp4"})
+    render_list("videos", tema, exts={".mp4"}, media="video")
     if links:
         st.markdown("##### Enlaces")
         for i, it in enumerate(links):
@@ -320,7 +340,7 @@ with tabs[3]:
                 set_title(meta, "audios", dst.split("/")[-1], titulo_aud.strip())
                 write_meta(tema, meta)
             st.success(f"Subido: {up.name}")
-    render_list("audios", tema, exts={".mp3",".wav",".m4a",".ogg"})
+    render_list("audios", tema, exts={".mp3",".wav",".m4a",".ogg"}, media="audio")
 
 # ================== PIE ==================
 st.markdown("---")
