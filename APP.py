@@ -1,100 +1,123 @@
 # -*- coding: utf-8 -*-
-import os, json, time
+import io, os, json, time
 from pathlib import Path
 import streamlit as st
 
-# ================== CONFIG ==================
+# ================== CONFIG BÁSICA ==================
 st.set_page_config(page_title="Química Orgánica", page_icon="🧪", layout="wide")
 
-TITULO = "QUÍMICA ORGÁNICA"
+TITULO   = "QUÍMICA ORGÁNICA"
 PROFESOR = "Profesor: Israel Funes"
-ALUMNOS = "Alumnos: Carrasco Federico & Catereniuc Federico"
-PASSCODE = "FFCC"   # Código de edición
+ALUMNOS  = "Alumnos: Carrasco Federico & Catereniuc Federico"
 
 TEMAS = [
-    "Conceptos básicos", "Nomenclatura", "Isomería", "Alcanos",
-    "Halogenuros de alquilo", "Alquenos", "Alquinos", "Aromáticos",
-    "Alcoholes", "Éteres", "Fenoles", "Aldehídos", "Cetonas",
-    "Ácidos carboxílicos", "Heteroátomos", "PAHs", "Carbohidratos",
-    "Aminoácidos", "Lípidos y proteínas",
+    "Conceptos básicos","Nomenclatura","Isomería","Alcanos",
+    "Halogenuros de alquilo","Alquenos","Alquinos","Aromáticos",
+    "Alcoholes","Éteres","Fenoles","Aldehídos","Cetonas",
+    "Ácidos carboxílicos","Heteroátomos","PAHs","Carbohidratos",
+    "Aminoácidos","Lípidos y proteínas",
 ]
 
-# Estilo simple (fondo suave y detalles redondeados)
+# === Secrets (NO las pongas en el repo; cargalas en Streamlit Secrets) ===
+SUPABASE_URL    = st.secrets["SUPABASE_URL"]
+SUPABASE_KEY    = st.secrets["SUPABASE_KEY"]          # service_role
+SUPABASE_BUCKET = st.secrets.get("SUPABASE_BUCKET", "utn")
+COURSE_ROOT     = st.secrets.get("COURSE_ROOT", "Quimica_Organica")
+PASSCODE        = st.secrets.get("PASSCODE", "FFCC")
+
+# ================== ESTILO ==================
 st.markdown("""
 <style>
 .stApp { background: #f5f8ff; }
 [data-testid="stSidebar"] { background: #eef3ff; }
 .block-container { padding-top: 1rem; }
 div[role="tablist"] button { border-radius: 10px !important; }
-.stButton>button { border-radius: 10px; }
-.stDownloadButton>button { border-radius: 10px; }
-.badge {
-  display:inline-block; padding:3px 10px; border-radius:20px;
-  background:#e6ecff; color:#1a2b69; font-size:0.85rem; margin-left:.5rem;
-}
+.stButton>button, .stDownloadButton>button { border-radius: 10px; }
+.badge { display:inline-block; padding:3px 10px; border-radius:20px;
+  background:#e6ecff; color:#1a2b69; font-size:0.85rem; margin-left:.5rem; }
 </style>
 """, unsafe_allow_html=True)
 
-# ================== PERSISTENCIA LOCAL ==================
-BASE = Path("storage")
-BASE.mkdir(exist_ok=True)
-META_JSON = BASE / "meta.json"
+# ================== SUPABASE CLIENT ==================
+from supabase import create_client, Client
+supa: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-def _empty_meta():
-    return {}  # {topic_key: {"titles": {"resumenes":{file:title}, ...}, "video_links":[{"titulo","url"}]}}
-
-def load_meta():
-    if META_JSON.exists():
-        try:
-            return json.loads(META_JSON.read_text(encoding="utf-8"))
-        except Exception:
-            return _empty_meta()
-    return _empty_meta()
-
-def save_meta(meta: dict):
-    META_JSON.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
-
+# ================== HELPERS ==================
 def safe_folder(name: str) -> str:
     return "".join([c for c in name.lower().replace(" ", "_") if c.isalnum() or c in "-_"])
 
-def ensure_topic_dirs(topic: str):
-    root = BASE / safe_folder(topic)
-    (root / "resumenes").mkdir(parents=True, exist_ok=True)
-    (root / "apuntes").mkdir(parents=True, exist_ok=True)
-    (root / "videos").mkdir(parents=True, exist_ok=True)   # MP4 locales
-    (root / "audios").mkdir(parents=True, exist_ok=True)
-    return root
+def topic_prefix(tema: str) -> str:
+    # Ruta base por tema dentro del bucket
+    return f"{COURSE_ROOT}/{safe_folder(tema)}"
 
-def list_files(folder: Path, exts):
-    files = []
-    if folder.exists():
-        for f in sorted(folder.iterdir(), key=lambda p: p.name.lower()):
-            if f.is_file() and (f.suffix.lower() in exts):
-                files.append(f)
-    return files
+def bucket_join(*parts) -> str:
+    return "/".join(p.strip("/").replace("//","/") for p in parts)
 
-def get_title(meta, topic_key, bucket, filename):
-    return (meta.get(topic_key, {})
-               .get("titles", {})
-               .get(bucket, {})
-               .get(filename, ""))
-
-def set_title(meta, topic_key, bucket, filename, title):
-    meta.setdefault(topic_key, {}).setdefault("titles", {}).setdefault(bucket, {})
-    if title.strip():
-        meta[topic_key]["titles"][bucket][filename] = title.strip()
-    else:
-        # si está vacío, removemos el título para no ensuciar
-        meta[topic_key]["titles"][bucket].pop(filename, None)
-
-def add_link(meta, topic_key, titulo, url):
-    meta.setdefault(topic_key, {}).setdefault("video_links", [])
-    meta[topic_key]["video_links"].append({"titulo": titulo.strip() or "Video", "url": url.strip()})
-
-def delete_link(meta, topic_key, idx):
+def storage_list(folder_path: str):
     try:
-        meta.setdefault(topic_key, {}).setdefault("video_links", [])
-        meta[topic_key]["video_links"].pop(idx)
+        return supa.storage.from_(SUPABASE_BUCKET).list(folder_path) or []
+    except Exception:
+        return []
+
+def storage_upload(dst_path: str, data_bytes: bytes, content_type: str):
+    return supa.storage.from_(SUPABASE_BUCKET).upload(
+        dst_path, io.BytesIO(data_bytes),
+        file_options={"content-type": content_type, "cache-control": "3600", "upsert": "true"}
+    )
+
+def storage_download(src_path: str) -> bytes | None:
+    try:
+        return supa.storage.from_(SUPABASE_BUCKET).download(src_path)
+    except Exception:
+        return None
+
+def storage_remove(paths: list[str]):
+    try:
+        return supa.storage.from_(SUPABASE_BUCKET).remove(paths)
+    except Exception as e:
+        return {"error": str(e)}
+
+def public_url(path: str) -> str | None:
+    try:
+        res = supa.storage.from_(SUPABASE_BUCKET).get_public_url(path)
+        if isinstance(res, dict):
+            return res.get("publicURL") or res.get("publicUrl") or res.get("data", {}).get("publicUrl")
+        return str(res)
+    except Exception:
+        return None
+
+# ---- meta.json por tema (títulos y enlaces) ----
+def read_meta(tema: str) -> dict:
+    p = bucket_join(topic_prefix(tema), "meta.json")
+    raw = storage_download(p)
+    if not raw:
+        return {}
+    try:
+        return json.loads(raw.decode("utf-8"))
+    except Exception:
+        return {}
+
+def write_meta(tema: str, meta: dict):
+    p = bucket_join(topic_prefix(tema), "meta.json")
+    storage_upload(p, json.dumps(meta, ensure_ascii=False, indent=2).encode("utf-8"),
+                   content_type="application/json")
+
+def get_title(meta, bucket, filename):
+    return meta.get("titles", {}).get(bucket, {}).get(filename, "")
+
+def set_title(meta, bucket, filename, title):
+    meta.setdefault("titles", {}).setdefault(bucket, {})
+    if title.strip():
+        meta["titles"][bucket][filename] = title.strip()
+    else:
+        meta["titles"][bucket].pop(filename, None)
+
+def add_link(meta, titulo, url):
+    meta.setdefault("video_links", []).append({"titulo": titulo.strip() or "Video", "url": url.strip()})
+
+def delete_link(meta, idx):
+    try:
+        meta.setdefault("video_links", []).pop(idx)
     except Exception:
         pass
 
@@ -105,20 +128,17 @@ with col_logo:
         st.image("logoutn.png", use_container_width=True)
     else:
         st.info("Subí **logoutn.png** a la raíz del repo para ver el logo aquí.")
-
 with col_title:
     st.title(TITULO)
     st.subheader(PROFESOR)
     st.write(ALUMNOS)
-    st.markdown('<span class="badge">Repositorio académico</span>', unsafe_allow_html=True)
-
+    st.markdown('<span class="badge">Repositorio académico – Supabase Storage</span>', unsafe_allow_html=True)
 st.markdown("---")
 
 # ================== MODO EDICIÓN ==================
 if "can_edit" not in st.session_state:
     st.session_state["can_edit"] = False
-
-with st.expander("🔐 Modo edición (solo para subir/borrar/renombrar)", expanded=False):
+with st.expander("🔐 Modo edición (subir/borrar/renombrar)", expanded=False):
     if st.session_state["can_edit"]:
         st.success("Modo edición ACTIVO.")
         if st.button("Cerrar modo edición"):
@@ -137,55 +157,53 @@ with st.expander("🔐 Modo edición (solo para subir/borrar/renombrar)", expand
 # ================== NAVEGACIÓN ==================
 st.sidebar.header("Navegación")
 tema = st.sidebar.selectbox("Elegí un tema", TEMAS, index=0)
-topic_key = safe_folder(tema)
-root = ensure_topic_dirs(tema)
-meta = load_meta()
 
 tabs = st.tabs([
-    "📄 PDF Resúmenes",
-    "📘 PDF Apuntes del profesor",
-    "🎥 Videos (MP4 o enlace)",
-    "🎧 Audios (MP3)"
+    "📄 PDF Resúmenes", "📘 PDF Apuntes del profesor",
+    "🎥 Videos (MP4 o enlace)", "🎧 Audios (MP3)"
 ])
 
-# -------- Helper UI: listado con descargar + borrar/renombrar --------
-def render_file_list(bucket_name, folder: Path, exts):
+# -------- UI helper: listado (Abrir/Descargar + Eliminar/Renombrar) --------
+def render_list(bucket_name: str, tema: str, exts: set[str]):
     can_edit = st.session_state["can_edit"]
-    files = list_files(folder, exts=exts)
-    if not files:
+    folder = bucket_join(topic_prefix(tema), bucket_name)
+    objs = storage_list(folder)
+
+    if not objs:
         st.info("No hay archivos cargados aún.")
         return
 
+    meta = read_meta(tema)
     st.markdown("#### Archivos cargados")
-    for p in files:
-        fname = p.name
-        title = get_title(meta, topic_key, bucket_name, fname) or fname
+    for obj in sorted(objs, key=lambda o: o.get("name","").lower()):
+        name = obj.get("name","")
+        if not any(name.lower().endswith(e) for e in exts):
+            continue
+        full_path = bucket_join(folder, name)
+        url = public_url(full_path)
+        title = get_title(meta, bucket_name, name) or name
+
         cols = st.columns([4, 2, 1, 1]) if can_edit else st.columns([6, 2])
         with cols[0]:
             st.write(f"**{title}**")
-            st.caption(fname)
+            st.caption(name)
         with cols[1]:
-            with open(p, "rb") as f:
-                st.download_button("📥 Descargar", f, file_name=fname, key=f"dl_{bucket_name}_{fname}")
+            if url:
+                st.markdown(f"[Abrir / Descargar]({url})")
         if can_edit:
             with cols[2]:
-                # Renombrar título (no archivo)
-                new_title = st.text_input("Título", value=title if title != fname else "", key=f"ttl_{bucket_name}_{fname}")
+                new_title = st.text_input("Título", value=title if title != name else "",
+                                          key=f"ttl_{bucket_name}_{name}")
             with cols[3]:
-                if st.button("🗑️ Eliminar", key=f"del_{bucket_name}_{fname}"):
-                    try:
-                        os.remove(p)
-                        # limpiar título si existía
-                        set_title(meta, topic_key, bucket_name, fname, "")
-                        save_meta(meta)
-                        st.success(f"Eliminado: {fname}")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"No se pudo eliminar: {e}")
-            # Guardar cambio de título si lo modificó
-            if new_title != (title if title != fname else ""):
-                set_title(meta, topic_key, bucket_name, fname, new_title)
-                save_meta(meta)
+                if st.button("🗑️ Eliminar", key=f"del_{bucket_name}_{name}"):
+                    storage_remove([full_path])
+                    set_title(meta, bucket_name, name, "")
+                    write_meta(tema, meta)
+                    st.success(f"Eliminado: {name}")
+                    st.rerun()
+            if new_title != (title if title != name else ""):
+                set_title(meta, bucket_name, name, new_title)
+                write_meta(tema, meta)
 
 # ================== TAB 1: RESÚMENES ==================
 with tabs[0]:
@@ -195,18 +213,18 @@ with tabs[0]:
         with c1:
             up = st.file_uploader("Subir PDF de resumen", type=["pdf"], key=f"res_{tema}")
         with c2:
-            titulo_pdf = st.text_input("Título (opcional) para el PDF recién subido", key=f"res_title_{tema}")
+            titulo_pdf = st.text_input("Título (opcional) para el PDF", key=f"res_title_{tema}")
         if up is not None:
-            savepath = root / "resumenes" / f"{int(time.time())}_{up.name}"
-            with open(savepath, "wb") as f:
-                f.write(up.read())
+            dst = bucket_join(topic_prefix(tema), "resumenes", f"{int(time.time())}_{up.name}")
+            storage_upload(dst, up.read(), content_type="application/pdf")
             if titulo_pdf.strip():
-                set_title(meta, topic_key, "resumenes", savepath.name, titulo_pdf.strip())
-                save_meta(meta)
-            st.success(f"Guardado: {savepath.name}")
-    render_file_list("resumenes", root / "resumenes", exts={".pdf"})
+                meta = read_meta(tema)
+                set_title(meta, "resumenes", dst.split("/")[-1], titulo_pdf.strip())
+                write_meta(tema, meta)
+            st.success(f"Subido: {up.name}")
+    render_list("resumenes", tema, exts={".pdf"})
 
-# ================== TAB 2: APUNTES DEL PROFESOR ==================
+# ================== TAB 2: APUNTES ==================
 with tabs[1]:
     st.subheader(f"Apuntes del profesor — {tema}")
     if st.session_state["can_edit"]:
@@ -214,102 +232,73 @@ with tabs[1]:
         with c1:
             up = st.file_uploader("Subir PDF de apuntes", type=["pdf"], key=f"apu_{tema}")
         with c2:
-            titulo_pdf = st.text_input("Título (opcional) para el PDF recién subido", key=f"apu_title_{tema}")
+            titulo_pdf = st.text_input("Título (opcional) para el PDF", key=f"apu_title_{tema}")
         if up is not None:
-            savepath = root / "apuntes" / f"{int(time.time())}_{up.name}"
-            with open(savepath, "wb") as f:
-                f.write(up.read())
+            dst = bucket_join(topic_prefix(tema), "apuntes", f"{int(time.time())}_{up.name}")
+            storage_upload(dst, up.read(), content_type="application/pdf")
             if titulo_pdf.strip():
-                set_title(meta, topic_key, "apuntes", savepath.name, titulo_pdf.strip())
-                save_meta(meta)
-            st.success(f"Guardado: {savepath.name}")
-    render_file_list("apuntes", root / "apuntes", exts={".pdf"})
+                meta = read_meta(tema)
+                set_title(meta, "apuntes", dst.split("/")[-1], titulo_pdf.strip())
+                write_meta(tema, meta)
+            st.success(f"Subido: {up.name}")
+    render_list("apuntes", tema, exts={".pdf"})
 
 # ================== TAB 3: VIDEOS ==================
 with tabs[2]:
     st.subheader(f"Videos — {tema}")
+    meta = read_meta(tema)
 
-    # a) MP4 local
+    # a) MP4 a Storage
     if st.session_state["can_edit"]:
         c1, c2 = st.columns([2,3])
         with c1:
             up = st.file_uploader("Subir video MP4", type=["mp4"], key=f"vid_{tema}")
         with c2:
-            titulo_mp4 = st.text_input("Título (opcional) para el video recién subido", key=f"vid_title_{tema}")
+            titulo_mp4 = st.text_input("Título (opcional) del video", key=f"vid_title_{tema}")
         if up is not None:
-            savepath = root / "videos" / f"{int(time.time())}_{up.name}"
-            with open(savepath, "wb") as f:
-                f.write(up.read())
+            dst = bucket_join(topic_prefix(tema), "videos", f"{int(time.time())}_{up.name}")
+            storage_upload(dst, up.read(), content_type="video/mp4")
             if titulo_mp4.strip():
-                set_title(meta, topic_key, "videos", savepath.name, titulo_mp4.strip())
-                save_meta(meta)
-            st.success(f"Guardado: {savepath.name}")
+                set_title(meta, "videos", dst.split("/")[-1], titulo_mp4.strip())
+                write_meta(tema, meta)
+            st.success(f"Subido: {up.name}")
 
-    # b) Enlaces externos
-    links = load_meta().get(topic_key, {}).get("video_links", [])
+    # b) Enlaces externos (YouTube/Drive/Zoom)
+    links = meta.get("video_links", [])
     if st.session_state["can_edit"]:
         st.markdown("##### Agregar enlace (YouTube/Drive/Zoom)")
         url = st.text_input("URL del video", key=f"url_{tema}")
         titulo = st.text_input("Título del video (opcional)", key=f"ttl_{tema}")
         if st.button("Agregar enlace", key=f"addlink_{tema}"):
             if url.strip():
-                meta = load_meta()
-                add_link(meta, topic_key, titulo, url)
-                save_meta(meta)
+                meta = read_meta(tema)
+                add_link(meta, titulo, url)
+                write_meta(ema:=tema, meta)  # noqa
                 st.success("Enlace agregado.")
                 st.rerun()
             else:
-                st.error("Pegá una URL.")
+                st.error("Pegá una URL válida.")
 
     # Mostrar material
-    mp4s = list_files(root / "videos", exts={".mp4"})
-    titles_map = load_meta().get(topic_key, {}).get("titles", {}).get("videos", {})
-    if mp4s or links:
-        st.markdown("#### Material cargado")
-        # MP4
-        for p in mp4s:
-            title = titles_map.get(p.name, p.name)
-            st.write(f"**{title}**")
-            st.video(str(p))
-            cols = st.columns([2,1,1]) if st.session_state["can_edit"] else st.columns([2,1])
+    render_list("videos", tema, exts={".mp4"})
+    if links:
+        st.markdown("##### Enlaces")
+        for i, it in enumerate(links):
+            cols = st.columns([5,1]) if st.session_state["can_edit"] else st.columns([6])
             with cols[0]:
-                with open(p, "rb") as f:
-                    st.download_button("📥 Descargar", f, file_name=p.name, key=f"dl_vid_{p.name}")
+                if it.get("titulo"):
+                    st.write(f"**{it['titulo']}**")
+                st.video(it.get("url",""))
             if st.session_state["can_edit"]:
-                with cols[1]:
-                    new_title = st.text_input("Título", value=title if title != p.name else "", key=f"ttl_vid_{p.name}")
-                with cols[2]:
-                    if st.button("🗑️ Eliminar", key=f"del_vid_{p.name}"):
-                        try:
-                            os.remove(p)
-                            set_title(meta, topic_key, "videos", p.name, "")
-                            save_meta(meta)
-                            st.success(f"Eliminado: {p.name}")
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"No se pudo eliminar: {e}")
-                if new_title != (title if title != p.name else ""):
-                    set_title(meta, topic_key, "videos", p.name, new_title)
-                    save_meta(meta)
-
-        # Links
-        if links:
-            st.markdown("##### Enlaces")
-            for i, it in enumerate(links):
-                cols = st.columns([5,1]) if st.session_state["can_edit"] else st.columns([6])
-                with cols[0]:
-                    if it.get("titulo"):
-                        st.write(f"**{it['titulo']}**")
-                    st.video(it.get("url", ""))
-                if st.session_state["can_edit"]:
-                    if st.button("🗑️ Eliminar enlace", key=f"del_link_{i}"):
-                        meta = load_meta()
-                        delete_link(meta, topic_key, i)
-                        save_meta(meta)
-                        st.success("Enlace eliminado.")
-                        st.rerun()
+                if st.button("🗑️ Eliminar enlace", key=f"del_link_{i}"):
+                    meta = read_meta(tema)
+                    delete_link(meta, i)
+                    write_meta(tema, meta)
+                    st.success("Enlace eliminado.")
+                    st.rerun()
     else:
-        st.info("Todavía no hay videos cargados.")
+        if not storage_list(bucket_join(topic_prefix(tema), "videos")):
+            st.info("Todavía no hay videos cargados.")
 
 # ================== TAB 4: AUDIOS ==================
 with tabs[3]:
@@ -317,23 +306,23 @@ with tabs[3]:
     if st.session_state["can_edit"]:
         c1, c2 = st.columns([2,3])
         with c1:
-            up = st.file_uploader("Subir audio (MP3/WAV/M4A/OGG)", type=["mp3", "wav", "m4a", "ogg"], key=f"aud_{tema}")
+            up = st.file_uploader("Subir audio (MP3/WAV/M4A/OGG)", type=["mp3","wav","m4a","ogg"], key=f"aud_{tema}")
         with c2:
-            titulo_aud = st.text_input("Título (opcional) para el audio recién subido", key=f"aud_title_{tema}")
+            titulo_aud = st.text_input("Título (opcional) del audio", key=f"aud_title_{tema}")
         if up is not None:
-            savepath = root / "audios" / f"{int(time.time())}_{up.name}"
-            with open(savepath, "wb") as f:
-                f.write(up.read())
+            dst = bucket_join(topic_prefix(tema), "audios", f"{int(time.time())}_{up.name}")
+            mime = {".mp3":"audio/mpeg",".wav":"audio/wav",".m4a":"audio/mp4",".ogg":"audio/ogg"}.get(
+                Path(up.name).suffix.lower(), "application/octet-stream"
+            )
+            storage_upload(dst, up.read(), content_type=mime)
             if titulo_aud.strip():
-                set_title(meta, topic_key, "audios", savepath.name, titulo_aud.strip())
-                save_meta(meta)
-            st.success(f"Guardado: {savepath.name}")
-
-    render_file_list("audios", root / "audios", exts={".mp3", ".wav", ".m4a", ".ogg"})
+                meta = read_meta(tema)
+                set_title(meta, "audios", dst.split("/")[-1], titulo_aud.strip())
+                write_meta(tema, meta)
+            st.success(f"Subido: {up.name}")
+    render_list("audios", tema, exts={".mp3",".wav",".m4a",".ogg"})
 
 # ================== PIE ==================
 st.markdown("---")
-st.caption(
-    "Se guardan archivos en 'storage/'. En Streamlit Cloud el almacenamiento local puede "
-    "reiniciarse en redeploys. Para persistencia permanente luego podemos conectar Supabase/Drive."
-)
+st.caption(f"Archivos en Supabase Storage (bucket: {SUPABASE_BUCKET}). "
+           "Para Años/Materias, se puede anteponer 'Año/Materia' a la ruta y agregar dos selectores.")
