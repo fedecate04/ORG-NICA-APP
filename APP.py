@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import io, os, json, time, tempfile
+import io, os, json, time, tempfile, unicodedata, re
 from pathlib import Path
 import streamlit as st
 
@@ -40,11 +40,33 @@ div[role="tablist"] button { border-radius: 10px !important; }
 
 # ================== SUPABASE CLIENT ==================
 from supabase import create_client, Client
+from storage3.exceptions import StorageApiError
 supa: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+# ---------- Diagnóstico rápido ----------
+with st.expander("🛠️ Diagnóstico Supabase", expanded=False):
+    st.write("Bucket configurado:", SUPABASE_BUCKET)
+    st.write("URL:", SUPABASE_URL)
+    try:
+        buckets = supa.storage.list_buckets()
+        st.success(f"Buckets visibles: {[b['name'] for b in buckets]}")
+    except Exception as e:
+        st.error("No pude listar buckets (¿SUPABASE_KEY no es service_role?).")
+        st.code(repr(e))
+    try:
+        root_list = supa.storage.from_(SUPABASE_BUCKET).list("")
+        st.write(f"Objetos en raíz del bucket '{SUPABASE_BUCKET}': {len(root_list)}")
+    except Exception as e:
+        st.error("Error listando raíz del bucket (¿nombre mal escrito o bucket inexistente?).")
+        st.code(repr(e))
 
 # ================== HELPERS ==================
 def safe_folder(name: str) -> str:
-    return "".join([c for c in name.lower().replace(" ", "_") if c.isalnum() or c in "-_"])
+    # quita tildes/ñ y caracteres raros
+    s = unicodedata.normalize("NFKD", name).encode("ascii","ignore").decode("ascii")
+    s = s.lower().replace(" ", "_")
+    s = re.sub(r"[^a-z0-9\-_]", "", s)
+    return s
 
 def topic_prefix(tema: str) -> str:
     return f"{COURSE_ROOT}/{safe_folder(tema)}"
@@ -58,18 +80,32 @@ def storage_list(folder_path: str):
     except Exception:
         return []
 
-# ⬇️ FIX: subir usando archivo temporal + header correcto "x-upsert"
+# ⬇️ FIX: subir usando archivo temporal + file_options correctos
 def storage_upload(dst_path: str, data_bytes: bytes, content_type: str):
     with tempfile.NamedTemporaryFile(delete=False) as tmp:
         tmp.write(data_bytes)
         tmp.flush()
         tmp_path = tmp.name
     try:
-        return supa.storage.from_(SUPABASE_BUCKET).upload(
-            dst_path,
-            tmp_path,
-            {"content-type": content_type, "cache-control": "3600", "x-upsert": "true"},
-        )
+        try:
+            # El SDK espera keys con guión_bajo: content_type, upsert, cache_control
+            return supa.storage.from_(SUPABASE_BUCKET).upload(
+                dst_path,
+                tmp_path,
+                {"content_type": content_type, "upsert": True, "cache_control": "3600"},
+            )
+        except StorageApiError as e:
+            # Si el endpoint no permite upsert por POST, probamos PUT/update (sobrescribe)
+            try:
+                return supa.storage.from_(SUPABASE_BUCKET).update(
+                    dst_path,
+                    tmp_path,
+                    {"content_type": content_type, "cache_control": "3600"},
+                )
+            except Exception as e2:
+                st.error("Falló upload y update. Revisá bucket/clave/permisos.")
+                st.code(f"upload err: {repr(e)}\nupdate err: {repr(e2)}")
+                raise
     finally:
         try:
             os.remove(tmp_path)
@@ -234,8 +270,6 @@ with tabs[0]:
             storage_upload(dst, up.read(), content_type="application/pdf")
             if titulo_pdf.strip():
                 meta = read_meta(tema)
-                set_title(meta, "resúmenes", dst.split("/")[-1], titulo_pdf.strip())  # opcional: 'resumenes'
-                # mejor mantener la clave consistente:
                 set_title(meta, "resumenes", dst.split("/")[-1], titulo_pdf.strip())
                 write_meta(tema, meta)
             st.success(f"Subido: {up.name}")
@@ -290,7 +324,7 @@ with tabs[2]:
             if url.strip():
                 meta = read_meta(tema)
                 add_link(meta, titulo, url)
-                write_meta(tema, meta)   # <-- corregido
+                write_meta(tema, meta)
                 st.success("Enlace agregado.")
                 st.rerun()
             else:
