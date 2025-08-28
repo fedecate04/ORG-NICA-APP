@@ -12,6 +12,7 @@ TITULO   = "QUÍMICA ORGÁNICA"
 PROFESOR = "Profesor: Israel Funes"
 ALUMNOS  = "Alumnos: Carrasco Federico & Catereniuc Federico"
 
+# Temas (lista completa para el sidebar y la app)
 TEMAS = [
     "Conceptos básicos","Nomenclatura","Isomería","Alcanos",
     "Halogenuros de alquilo","Alquenos","Alquinos","Aromáticos",
@@ -19,6 +20,14 @@ TEMAS = [
     "Ácidos carboxílicos","Heteroátomos","PAHs","Carbohidratos",
     "Aminoácidos","Lípidos y proteínas",
 ]
+
+# --- Agrupaciones para subventanas (tabs) ---
+TEMAS_BASE = [
+    "Conceptos básicos","Nomenclatura","Isomería","Alcanos",
+    "Halogenuros de alquilo","Alquenos","Alquinos","Aromáticos",
+    "Alcoholes","Éteres","Fenoles","Aldehídos","Cetonas","Ácidos carboxílicos",
+]
+TEMAS_ESPECIALES = ["Heteroátomos","PAHs","Carbohidratos","Aminoácidos","Lípidos y proteínas"]
 
 # ===== Límites de carga (ajusta si lo necesitás) =====
 MAX_UPLOAD_MB = 50  # tope “seguro”; para videos grandes usa enlaces externos
@@ -38,13 +47,35 @@ PASSCODE        = st.secrets.get("PASSCODE", "FFCC")
 # ================== ESTILO ==================
 st.markdown("""
 <style>
-.stApp { background: #f5f8ff; }
+/* Fondo y layout */
+.stApp { background: #f7f9ff; }
 [data-testid="stSidebar"] { background: #eef3ff; }
-.block-container { padding-top: 1rem; }
-div[role="tablist"] button { border-radius: 10px !important; }
-.stButton>button, .stDownloadButton>button { border-radius: 10px; }
+.block-container { padding-top: .5rem; max-width: 1200px; }
+
+/* Header institucional centrado */
+.header-utn { text-align:center; margin: .25rem 0 1.2rem 0; }
+.header-utn img { max-width: 560px; width: 60%; height:auto; margin: 0 auto .6rem auto; display:block; }
+.header-utn .line1 { font-weight:700; font-size: 1.28rem; letter-spacing:.02em; }
+.header-utn .line2 { font-weight:600; font-size: 1.06rem; color:#334; margin-top:.18rem;}
+.header-utn .title { font-weight:800; font-size: 2.05rem; margin-top:.65rem; }
+
+/* Badge */
 .badge { display:inline-block; padding:3px 10px; border-radius:20px;
   background:#e6ecff; color:#1a2b69; font-size:0.85rem; margin-left:.5rem; }
+
+/* Tabs y botones */
+div[role="tablist"] button { border-radius: 10px !important; }
+.stButton>button, .stDownloadButton>button {
+  border:1px solid #d9e1ff; background:#ffffff; color:#1d2747;
+  padding:.44rem .85rem; border-radius:999px;
+}
+.stButton>button:hover { background:#f0f4ff; border-color:#b9c6ff; }
+
+/* Chips (usamos botones, pero con layout en filas) */
+.chips-row { display:flex; flex-wrap:wrap; gap:.5rem; margin:.4rem 0 1rem 0; }
+.chip-active > button {
+  background:#1f3b8a !important; color:white !important; border-color:#1f3b8a !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -236,17 +267,19 @@ def delete_link(meta, idx):
         pass
 
 # ================== CABECERA ==================
-col_logo, col_title = st.columns([1, 3], vertical_alignment="center")
-with col_logo:
-    if Path("logoutn.png").exists():
-        st.image("logoutn.png", use_container_width=True)
-    else:
-        st.info("Subí **logoutn.png** a la raíz del repo para ver el logo aquí.")
-with col_title:
-    st.title(TITULO)
-    st.subheader(PROFESOR)
-    st.write(ALUMNOS)
-    st.markdown('<span class="badge">Repositorio académico – Supabase Storage</span>', unsafe_allow_html=True)
+st.markdown('<div class="header-utn">', unsafe_allow_html=True)
+if Path("logoutn.png").exists():
+    st.image("logoutn.png", use_container_width=False)
+else:
+    st.info("Subí **logoutn.png** a la raíz del repo para ver el logo aquí.")
+st.markdown(f"""
+  <div class="line1">Universidad Tecnológica Nacional</div>
+  <div class="line2">Facultad Regional del Neuquén</div>
+  <div class="title">{TITULO}</div>
+""", unsafe_allow_html=True)
+st.markdown('</div>', unsafe_allow_html=True)
+
+st.markdown(f"**{PROFESOR}**  \n{ALUMNOS} <span class='badge'>Repositorio académico – Supabase Storage</span>", unsafe_allow_html=True)
 st.markdown("---")
 
 # ================== MODO EDICIÓN ==================
@@ -269,15 +302,48 @@ with st.expander("🔐 Modo edición (subir/borrar/renombrar)", expanded=False):
                 st.error("Código incorrecto.")
 
 # ================== NAVEGACIÓN ==================
+# Estado inicial del tema
+if "tema" not in st.session_state:
+    st.session_state["tema"] = TEMAS_BASE[0]
+
+# Sidebar tradicional
 st.sidebar.header("Navegación")
-tema = st.sidebar.selectbox("Elegí un tema", TEMAS, index=0)
+sb_tema = st.sidebar.selectbox("Elegí un tema", TEMAS, index=TEMAS.index(st.session_state["tema"]))
+if sb_tema != st.session_state["tema"]:
+    st.session_state["tema"] = sb_tema
 
-tabs = st.tabs([
-    "📄 PDF Resúmenes", "📘 PDF Apuntes del profesor",
-    "🎥 Videos (MP4 o enlace)", "🎧 Audios (MP3)"
-])
+# ---- Subventanas + chips en pantalla principal ----
+tab_base, tab_esp = st.tabs(["📚 Familia orgánica", "🧪 Grupos especiales"])
 
-# -------- UI helper: listado (link + eliminar/renombrar + embed opcional) --------
+def chips_row(options, selected, key_prefix):
+    # chips en filas flex (gracias al CSS). Usamos botones y marcamos el activo con una clase.
+    row = st.container()
+    with row:
+        st.markdown('<div class="chips-row">', unsafe_allow_html=True)
+        for i, t in enumerate(options):
+            # Para resaltar el seleccionado, metemos el botón en un contenedor con clase 'chip-active'
+            if t == selected:
+                with st.container():
+                    st.markdown('<div class="chip-active">', unsafe_allow_html=True)
+                    st.button("✓ " + t, key=f"{key_prefix}_{i}_active", use_container_width=False, disabled=True)
+                    st.markdown("</div>", unsafe_allow_html=True)
+            else:
+                if st.button(t, key=f"{key_prefix}_{i}", use_container_width=False):
+                    st.session_state["tema"] = t
+        st.markdown('</div>', unsafe_allow_html=True)
+
+with tab_base:
+    st.caption("Elegí rápidamente una familia de **Orgánica base**")
+    chips_row(TEMAS_BASE, st.session_state["tema"], "chip_base")
+
+with tab_esp:
+    st.caption("Elegí un tema de **Grupos especiales**")
+    chips_row(TEMAS_ESPECIALES, st.session_state["tema"], "chip_esp")
+
+# Variable de trabajo final
+tema = st.session_state["tema"]
+
+# ================== LISTADO REUTILIZABLE ==================
 def render_list(bucket_name: str, tema: str, exts: set[str], media: str | None = None):
     can_edit = st.session_state["can_edit"]
     folder = bucket_join(topic_prefix(tema), bucket_name)
@@ -322,7 +388,13 @@ def render_list(bucket_name: str, tema: str, exts: set[str], media: str | None =
                 set_title(meta, bucket_name, name, new_title)
                 write_meta(tema, meta)
 
-# ================== TAB 1: RESÚMENES ==================
+# ================== TABS DE CONTENIDO ==================
+tabs = st.tabs([
+    "📄 PDF Resúmenes", "📘 PDF Apuntes del profesor",
+    "🎥 Videos (MP4 o enlace)", "🎧 Audios (MP3)"
+])
+
+# -------- TAB 1: RESÚMENES --------
 with tabs[0]:
     st.subheader(f"Resúmenes — {tema}")
     if st.session_state["can_edit"]:
@@ -344,7 +416,7 @@ with tabs[0]:
                 st.success(f"Subido: {up.name}")
     render_list("resumenes", tema, exts={".pdf"})
 
-# ================== TAB 2: APUNTES ==================
+# -------- TAB 2: APUNTES --------
 with tabs[1]:
     st.subheader(f"Apuntes del profesor — {tema}")
     if st.session_state["can_edit"]:
@@ -366,7 +438,7 @@ with tabs[1]:
                 st.success(f"Subido: {up.name}")
     render_list("apuntes", tema, exts={".pdf"})
 
-# ================== TAB 3: VIDEOS ==================
+# -------- TAB 3: VIDEOS --------
 with tabs[2]:
     st.subheader(f"Videos — {tema}")
     meta = read_meta(tema)
@@ -434,7 +506,7 @@ with tabs[2]:
         if not storage_list(bucket_join(topic_prefix(tema), "videos")):
             st.info("Todavía no hay videos cargados.")
 
-# ================== TAB 4: AUDIOS ==================
+# -------- TAB 4: AUDIOS --------
 with tabs[3]:
     st.subheader(f"Audios — {tema}")
     if st.session_state["can_edit"]:
