@@ -18,7 +18,7 @@ TEMAS = [
     "Aminoácidos","Lípidos y proteínas",
 ]
 
-# === Secrets (NO las pongas en el repo; cargalas en Streamlit Secrets) ===
+# === Secrets (NO van en el repo; cargalas en Streamlit Secrets) ===
 SUPABASE_URL    = st.secrets["SUPABASE_URL"]
 SUPABASE_KEY    = st.secrets["SUPABASE_KEY"]          # service_role
 SUPABASE_BUCKET = st.secrets.get("SUPABASE_BUCKET", "utn")
@@ -47,7 +47,6 @@ def safe_folder(name: str) -> str:
     return "".join([c for c in name.lower().replace(" ", "_") if c.isalnum() or c in "-_"])
 
 def topic_prefix(tema: str) -> str:
-    # Ruta base por tema dentro del bucket
     return f"{COURSE_ROOT}/{safe_folder(tema)}"
 
 def bucket_join(*parts) -> str:
@@ -59,18 +58,17 @@ def storage_list(folder_path: str):
     except Exception:
         return []
 
+# ⬇️ FIX: subir usando archivo temporal + header correcto "x-upsert"
 def storage_upload(dst_path: str, data_bytes: bytes, content_type: str):
-    # Sube usando archivo temporal (el SDK espera ruta, no BytesIO)
     with tempfile.NamedTemporaryFile(delete=False) as tmp:
         tmp.write(data_bytes)
         tmp.flush()
         tmp_path = tmp.name
     try:
-        # En file_options el SDK acepta "content-type" (con guión)
         return supa.storage.from_(SUPABASE_BUCKET).upload(
             dst_path,
             tmp_path,
-            {"content-type": content_type, "cache-control": "3600", "upsert": "true"},
+            {"content-type": content_type, "cache-control": "3600", "x-upsert": "true"},
         )
     finally:
         try:
@@ -178,9 +176,6 @@ tabs = st.tabs([
 
 # -------- UI helper: listado (link + eliminar/renombrar + embed opcional) --------
 def render_list(bucket_name: str, tema: str, exts: set[str], media: str | None = None):
-    """
-    media: None | 'video' | 'audio'  -> para embeber además del link.
-    """
     can_edit = st.session_state["can_edit"]
     folder = bucket_join(topic_prefix(tema), bucket_name)
     objs = storage_list(folder)
@@ -239,6 +234,8 @@ with tabs[0]:
             storage_upload(dst, up.read(), content_type="application/pdf")
             if titulo_pdf.strip():
                 meta = read_meta(tema)
+                set_title(meta, "resúmenes", dst.split("/")[-1], titulo_pdf.strip())  # opcional: 'resumenes'
+                # mejor mantener la clave consistente:
                 set_title(meta, "resumenes", dst.split("/")[-1], titulo_pdf.strip())
                 write_meta(tema, meta)
             st.success(f"Subido: {up.name}")
@@ -293,7 +290,7 @@ with tabs[2]:
             if url.strip():
                 meta = read_meta(tema)
                 add_link(meta, titulo, url)
-                write_meta(tema, meta)  # <-- corregido
+                write_meta(tema, meta)   # <-- corregido
                 st.success("Enlace agregado.")
                 st.rerun()
             else:
@@ -331,9 +328,9 @@ with tabs[3]:
             titulo_aud = st.text_input("Título (opcional) del audio", key=f"aud_title_{tema}")
         if up is not None:
             dst = bucket_join(topic_prefix(tema), "audios", f"{int(time.time())}_{up.name}")
-            mime = {".mp3":"audio/mpeg",".wav":"audio/wav",".m4a":"audio/mp4",".ogg":"audio/ogg"}.get(
-                Path(up.name).suffix.lower(), "application/octet-stream"
-            )
+            mime = {
+                ".mp3":"audio/mpeg", ".wav":"audio/wav", ".m4a":"audio/mp4", ".ogg":"audio/ogg"
+            }.get(Path(up.name).suffix.lower(), "application/octet-stream")
             storage_upload(dst, up.read(), content_type=mime)
             if titulo_aud.strip():
                 meta = read_meta(tema)
