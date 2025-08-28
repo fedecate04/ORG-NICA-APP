@@ -32,43 +32,38 @@ TEMAS_ESPECIALES = [
 ]
 
 # ===== Límites de carga (ajusta si lo necesitás) =====
-MAX_UPLOAD_MB = 50  # tope “seguro”; para videos grandes usa enlaces externos
+MAX_UPLOAD_MB = 50
 def too_big(uploaded_file) -> bool:
     return getattr(uploaded_file, "size", 0) > MAX_UPLOAD_MB * 1024 * 1024
-
 def human_mb(nbytes: int) -> str:
     return f"{nbytes/1024/1024:.1f} MB"
 
-# === Secrets (NO van en el repo; cargalas en Streamlit Secrets) ===
+# === Secrets (cargalas en Streamlit Secrets) ===
 SUPABASE_URL    = st.secrets["SUPABASE_URL"]
 SUPABASE_KEY    = st.secrets["SUPABASE_KEY"]          # service_role
 SUPABASE_BUCKET = st.secrets.get("SUPABASE_BUCKET", "utn")
 COURSE_ROOT     = st.secrets.get("COURSE_ROOT", "Quimica_Organica")
 PASSCODE        = st.secrets.get("PASSCODE", "FFCC")
 
-# ================== ESTILO (azul marino claro, institucional) ==================
+# ================== ESTILO (claro institucional) ==================
 st.markdown("""
 <style>
 :root{
-  --bg:#11233f;          /* azul marino claro */
-  --bg-grad:#0f2140;     /* gradiente sutil */
-  --panel:#162a4c;       /* paneles */
-  --soft:#1b315a;        /* resaltado suave */
-  --text:#eaf2ff;        /* texto principal */
-  --muted:#bcd0ef;       /* texto secundario */
-  --accent:#2e6ddf;      /* acento institucional */
-  --accent-2:#4aa4d9;    /* acento secundario */
-  --border:#274773;
+  --bg:#f5f8ff;          /* fondo principal claro */
+  --panel:#ffffff;       /* tarjetas/paneles */
+  --soft:#f0f4ff;        /* resaltado suave */
+  --text:#0f172a;        /* texto principal (slate-900) */
+  --muted:#51607a;       /* texto secundario */
+  --accent:#1e40af;      /* indigo-800 */
+  --accent-2:#3b82f6;    /* blue-500 */
+  --border:#dfe7f5;      /* borde suave */
 }
-html, body, .stApp {
-  background: radial-gradient(1200px 600px at 10% -10%, var(--bg-grad) 0%, var(--bg) 55%) fixed;
-  color: var(--text);
-}
-.block-container { padding-top: 0.6rem; }
+html, body, .stApp { background: var(--bg); color: var(--text); }
+.block-container { padding-top: .8rem; }
 
 /* Sidebar */
 [data-testid="stSidebar"] {
-  background: linear-gradient(180deg, #0f2140 0%, #0d1e3b 100%);
+  background: #ffffff;
   border-right: 1px solid var(--border);
 }
 
@@ -77,87 +72,107 @@ h1,h2,h3,h4 { color: var(--text) !important; }
 p, span, label, .stMarkdown, .stTextInput label { color: var(--text) !important; }
 .caption, .small { color: var(--muted) !important; }
 
-/* Pestañas de recursos (no neón, borde sobrio) */
+/* Acordeones y alertas */
+[data-testid="stExpander"] {
+  border: 1px solid var(--border);
+  background: var(--panel);
+  border-radius: 12px;
+}
+[data-testid="stAlert"]{
+  background: var(--soft) !important;
+  border:1px solid var(--border) !important;
+  color:var(--text) !important;
+  border-radius:12px !important;
+}
+
+/* Tabs de recursos */
+div[role="tablist"] {
+  gap: .5rem;
+}
 div[role="tablist"] button {
-  background: linear-gradient(180deg, #183156 0%, #152c50 100%) !important;
+  background: #f8faff !important;
   color: var(--muted) !important;
   border: 1px solid var(--border) !important;
   border-radius: 10px !important;
 }
 div[role="tablist"] button[aria-selected="true"]{
-  color: #ffffff !important;
+  color: var(--text) !important;
+  background: #ffffff !important;
   border-color: var(--accent) !important;
-  box-shadow: 0 0 0 2px rgba(46,109,223,.25);
+  box-shadow: 0 0 0 2px rgba(30,64,175,.15);
 }
 
-/* Botones (chips y acciones) */
+/* Botones */
 .stButton>button, .stDownloadButton>button {
-  background: linear-gradient(180deg, #1a3561 0%, #172f56 100%);
-  border: 1px solid var(--border);
-  color: #eef6ff;
+  background: #1e40af;
+  color: #ffffff;
+  border: 1px solid #1e3a8a;
   border-radius: 10px;
   padding: .5rem .9rem;
-  transition: all .16s ease;
+  transition: background .15s ease, transform .05s ease;
 }
-.stButton>button:hover, .stDownloadButton>button:hover {
-  border-color: var(--accent);
-  background: linear-gradient(180deg, #1b3a6e 0%, #193562 100%);
-}
+.stButton>button:hover, .stDownloadButton>button:hover { background: #1d4ed8; }
+.stButton>button:active { transform: translateY(1px); }
 
 /* Inputs */
 .stTextInput>div>div>input, .stTextArea textarea, .stSelectbox div[data-baseweb="select"] {
-  background: #142a51 !important;
+  background: #ffffff !important;
   color: var(--text) !important;
   border: 1px solid var(--border) !important;
   border-radius: 10px !important;
 }
 .stTextInput>div>div>input:focus, .stTextArea textarea:focus {
   border-color: var(--accent) !important;
-  box-shadow: 0 0 0 2px rgba(46,109,223,.25);
+  box-shadow: 0 0 0 2px rgba(30,64,175,.15);
 }
 
-/* Alertas */
-[data-testid="stAlert"]{
-  background: linear-gradient(180deg,#183156,#142a51) !important;
-  border:1px solid var(--border) !important;
-  color:#e6f0ff !important;
-  border-radius:12px !important;
-}
-
-/* Separadores y links */
-hr, .stMarkdown hr { border: none; height:1px; background: linear-gradient(90deg, transparent, #2b4d82, transparent); }
-a { color:#a9cbff; text-decoration: none; }
+/* Links y separadores */
+a { color: #1d4ed8; text-decoration: none; }
 a:hover { text-decoration: underline; }
+hr, .stMarkdown hr { border: none; height:1px; background: linear-gradient(90deg, transparent, var(--border), transparent); }
 
 /* ====== Hero centrado ====== */
-.hero {
-  text-align:center; margin: 10px 0 6px 0;
-}
-.hero img { max-width: 520px; margin: 0 auto; display:block; }
-.hero h1 { font-size: 2.2rem; margin: .6rem 0 0 0; }
-.hero .inst { margin-top:.6rem; line-height: 1.15; }
-.hero .inst div { letter-spacing:.2px; }
-.hero .inst .u { font-weight:700; }
-.hero .inst .f { opacity:.9; }
-.hero .inst .c { margin-top:.2rem; font-weight:600; color:#dfe9ff; }
-.hero .meta { margin-top:.5rem; opacity:.95; }
+.hero { text-align:center; margin: 10px 0 6px 0; }
+.hero img { max-width: 620px; margin: 0 auto; display:block; }
+.hero .inst { margin-top:.6rem; line-height: 1.2; }
+.hero .inst .u { font-weight:700; letter-spacing:.3px; }
+.hero .inst .f { color: #1f2a44; }
+.hero .inst .c { margin-top:.25rem; font-weight:700; color: var(--accent); }
+.hero .meta { margin-top:.4rem; color:#2b3a57; }
 
-/* ====== Chips con 2 filas ====== */
+/* ====== Chips (dos filas) ====== */
 .chipbar { display:flex; flex-wrap:wrap; gap:.5rem; }
-.chipbar .title { width:100%; font-weight:700; margin:.2rem 0 .3rem 0; color:#dfe9ff; }
-.chipbar .chip { display:inline-block; }
+.chipbar .title { width:100%; font-weight:700; margin:.2rem 0 .3rem 0; color:#1f2a44; }
 .chipbar .chip button {
-  background: #1a3561;
+  background: #f2f6ff;
   border: 1px solid var(--border);
-  padding: .35rem .75rem;
-  font-size: .92rem;
+  padding: .38rem .8rem;
+  font-size: .95rem;
   border-radius: 18px;
+  color: var(--text);
 }
-.chipbar .chip button:hover {
-  background:#1b3a6e; border-color: var(--accent);
+.chipbar .chip button:hover { background:#eef3ff; border-color: var(--accent-2); }
+
+/* Tarjeta contenedora de "Contenido del tema" */
+.card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px 18px;
+  box-shadow: 0 1px 2px rgba(15,23,42,.06);
 }
 
-/* Ocultar borde gris de contenedores vacíos */
+/* Banner de modo edición */
+.edit-banner{
+  background:#e0e7ff;
+  border:1px solid #c7d2fe;
+  color:#1e40af;
+  padding:8px 12px;
+  border-radius:10px;
+  margin:.2rem 0 .6rem 0;
+}
+
+/* Ocultar fondos grises de ciertos contenedores */
 .st-emotion-cache-1n76uvr, .st-emotion-cache-1v0mbdj { background: transparent !important; }
 </style>
 """, unsafe_allow_html=True)
@@ -169,7 +184,7 @@ try:
 except Exception:
     class StorageApiError(Exception):
         pass
-import storage3  # para capturar storage3.utils.StorageException
+import storage3
 
 supa: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
@@ -246,28 +261,24 @@ def drive_preview_url(url: str) -> str:
 def storage_upload(dst_path: str, data_bytes: bytes, content_type: str):
     dst_path = re.sub(r"[^\w\-/\.]", "_", dst_path)
     with tempfile.NamedTemporaryFile(delete=False) as tmp:
-        tmp.write(data_bytes)
-        tmp.flush()
+        tmp.write(data_bytes); tmp.flush()
         tmp_path = tmp.name
     try:
         try:
             return supa.storage.from_(SUPABASE_BUCKET).upload(
-                dst_path,
-                tmp_path,
+                dst_path, tmp_path,
                 {"content-type": str(content_type), "cache-control": "3600", "x-upsert": "true"},
             )
         except (StorageApiError, storage3.utils.StorageException, Exception) as e:
             try:
                 info = (e.args or [{}])[0]
-                status = info.get("statusCode")
-                msg = info.get("message") or info.get("error") or info
+                status = info.get("statusCode"); msg = info.get("message") or info.get("error") or info
                 st.warning(f"Upload falló (status={status}). Intento update(). Detalle: {msg}")
             except Exception:
                 st.warning(f"Upload falló. Intento update(). Detalle: {repr(e)}")
             try:
                 return supa.storage.from_(SUPABASE_BUCKET).update(
-                    dst_path,
-                    tmp_path,
+                    dst_path, tmp_path,
                     {"content-type": str(content_type), "cache-control": "3600"},
                 )
             except (StorageApiError, storage3.utils.StorageException, Exception) as e2:
@@ -278,14 +289,11 @@ def storage_upload(dst_path: str, data_bytes: bytes, content_type: str):
                     st.error(f"Update también falló (status={status2}).")
                     st.code(json.dumps(info2, ensure_ascii=False, indent=2))
                 except Exception:
-                    st.error("Update también falló.")
-                    st.code(repr(e2))
+                    st.error("Update también falló."); st.code(repr(e2))
                 raise
     finally:
-        try:
-            os.remove(tmp_path)
-        except Exception:
-            pass
+        try: os.remove(tmp_path)
+        except Exception: pass
 
 def storage_download(src_path: str) -> bytes | None:
     try:
@@ -324,9 +332,7 @@ def write_meta(tema: str, meta: dict):
                    content_type="application/json")
 
 def get_title(meta, bucket, filename):
-    return meta.get("titles", {}).get(bucket, {}).get(filename, ""
-
-)
+    return meta.get("titles", {}).get(bucket, {}).get(filename, "")
 
 def set_title(meta, bucket, filename, title):
     meta.setdefault("titles", {}).setdefault(bucket, {})
@@ -345,7 +351,6 @@ def delete_link(meta, idx):
         pass
 
 # ================== HERO CENTRADO (logo + textos) ==================
-# Bloque centrado con logo y textos institucionales
 st.markdown('<div class="hero">', unsafe_allow_html=True)
 if Path("logoutn.png").exists():
     st.image("logoutn.png", use_container_width=False)
@@ -362,16 +367,18 @@ st.markdown(f"""
   <div>{ALUMNOS}</div>
 </div>
 """, unsafe_allow_html=True)
-st.markdown('</div>', unsafe_allow_html=True)  # cierra .hero
-
+st.markdown('</div>', unsafe_allow_html=True)
 st.markdown("---")
 
 # ================== MODO EDICIÓN ==================
 if "can_edit" not in st.session_state:
     st.session_state["can_edit"] = False
+# Banner si está activo
+if st.session_state["can_edit"]:
+    st.markdown('<div class="edit-banner">Modo edición activo</div>', unsafe_allow_html=True)
+
 with st.expander("🔐 Modo edición (subir/borrar/renombrar)", expanded=False):
     if st.session_state["can_edit"]:
-        st.success("Modo edición ACTIVO.")
         if st.button("Cerrar modo edición"):
             st.session_state["can_edit"] = False
             st.rerun()
@@ -416,8 +423,7 @@ if "tema_idx" not in st.session_state:
 def chip_row(titulo: str, lista_temas: list, prefix_key: str):
     st.markdown('<div class="chipbar">', unsafe_allow_html=True)
     st.markdown(f'<div class="title">{titulo}</div>', unsafe_allow_html=True)
-    # Render como botones "chips"
-    cols_per_row = 8  # forzamos varias columnas para no desbordar
+    cols_per_row = 8
     for i, t in enumerate(lista_temas):
         if i % cols_per_row == 0:
             cols = st.columns(cols_per_row)
@@ -443,11 +449,11 @@ tema = st.sidebar.selectbox(
 st.session_state["tema_idx"] = TEMAS.index(tema)
 tema = TEMAS[st.session_state["tema_idx"]]
 
-# ================== TABS DE RECURSOS ==================
-tabs = st.tabs([
-    "📄 PDF Resúmenes", "📘 PDF Apuntes del profesor",
-    "🎥 Videos (MP4 o enlace)", "🎧 Audios (MP3)"
-])
+# ================== CONTENIDO DEL TEMA ==================
+st.markdown(f"## CONTENIDO DEL TEMA — {tema}")
+st.markdown('<div class="card">', unsafe_allow_html=True)
+
+tabs = st.tabs(["📄 PDF Resúmenes", "📘 PDF Apuntes del profesor", "🎥 Videos (MP4 o enlace)", "🎧 Audios (MP3)"])
 
 # -------- UI helper: listado (link + eliminar/renombrar + embed opcional) --------
 def render_list(bucket_name: str, tema: str, exts: set[str], media: str | None = None):
@@ -534,7 +540,7 @@ with tabs[1]:
                 if titulo_pdf.strip():
                     meta = read_meta(tema)
                     set_title(meta, "apuntes", dst.split("/")[-1], titulo_pdf.strip())
-                    write_meta(tema, meta)
+                    write_meta(ema := tema, meta)  # guardar meta
                 st.success(f"Subido: {up.name}")
     render_list("apuntes", tema, exts={".pdf"})
 
@@ -630,6 +636,8 @@ with tabs[3]:
                     write_meta(tema, meta)
                 st.success(f"Subido: {up.name}")
     render_list("audios", tema, exts={".mp3",".wav",".m4a",".ogg"}, media="audio")
+
+st.markdown('</div>', unsafe_allow_html=True)  # cierra .card
 
 # ================== PIE ==================
 st.markdown("---")
