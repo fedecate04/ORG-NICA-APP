@@ -71,8 +71,7 @@ div[role="tablist"] button { border-radius: 10px !important; }
 }
 .stButton>button:hover { background:#f0f4ff; border-color:#b9c6ff; }
 
-/* Chips (usamos botones, pero con layout en filas) */
-.chips-row { display:flex; flex-wrap:wrap; gap:.5rem; margin:.4rem 0 1rem 0; }
+/* Chip activo (cuando lo deshabilitamos para marcar selección) */
 .chip-active > button {
   background:#1f3b8a !important; color:white !important; border-color:#1f3b8a !important;
 }
@@ -82,12 +81,11 @@ div[role="tablist"] button { border-radius: 10px !important; }
 # ================== SUPABASE CLIENT ==================
 from supabase import create_client, Client
 try:
-    # Según versión puede existir este submódulo
     from storage3.exceptions import StorageApiError
 except Exception:
     class StorageApiError(Exception):
         pass
-import storage3  # para capturar storage3.utils.StorageException
+import storage3
 
 supa: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
@@ -120,7 +118,7 @@ def safe_folder(name: str) -> str:
 def safe_filename(name: str) -> str:
     s = unicodedata.normalize("NFKD", name).encode("ascii","ignore").decode("ascii")
     s = s.strip().replace(" ", "_")
-    return re.sub(r"[^\w\.\-]", "_", s)  # permite letras/números/_ . -
+    return re.sub(r"[^\w\.\-]", "_", s)
 
 def topic_prefix(tema: str) -> str:
     return f"{COURSE_ROOT}/{safe_folder(tema)}"
@@ -139,33 +137,28 @@ def storage_list(folder_path: str):
     except Exception:
         return []
 
-# --- Enlaces embebibles vs. solo link ---
 def should_embed(url: str) -> bool:
     host = urlparse(url).netloc.lower()
     if "youtube.com" in host or "youtu.be" in host or "vimeo.com" in host:
         return True
-    # Embed de Drive sólo si está en modo /preview
     return "drive.google.com" in host and "/preview" in url
 
 def drive_preview_url(url: str) -> str:
     u = urlparse(url)
     if "drive.google.com" not in u.netloc.lower():
         return url
-    # /file/d/<ID>/view → /file/d/<ID>/preview
     if "/file/d/" in u.path:
         try:
             file_id = u.path.split("/file/d/")[1].split("/")[0]
             return f"https://drive.google.com/file/d/{file_id}/preview"
         except Exception:
             return url
-    # /open?id=<ID> → /file/d/<ID>/preview
     qs = parse_qs(u.query)
     if "id" in qs and qs["id"]:
         file_id = qs["id"][0]
         return f"https://drive.google.com/file/d/{file_id}/preview"
     return url
 
-# ⬇️ Upload robusto (captura StorageException) + sanea ruta
 def storage_upload(dst_path: str, data_bytes: bytes, content_type: str):
     dst_path = re.sub(r"[^\w\-/\.]", "_", dst_path)
     with tempfile.NamedTemporaryFile(delete=False) as tmp:
@@ -231,7 +224,6 @@ def public_url(path: str) -> str | None:
     except Exception:
         return None
 
-# ---- meta.json por tema (títulos y enlaces) ----
 def read_meta(tema: str) -> dict:
     p = bucket_join(topic_prefix(tema), "meta.json")
     raw = storage_download(p)
@@ -312,33 +304,41 @@ sb_tema = st.sidebar.selectbox("Elegí un tema", TEMAS, index=TEMAS.index(st.ses
 if sb_tema != st.session_state["tema"]:
     st.session_state["tema"] = sb_tema
 
-# ---- Subventanas + chips en pantalla principal ----
-tab_base, tab_esp = st.tabs(["📚 Familia orgánica", "🧪 Grupos especiales"])
+# ---- Chips en grilla horizontal ----
+def chips_grid(options: list[str], selected: str, key_prefix: str, n_cols: int = 5):
+    """
+    Muestra los temas como botones tipo 'chip' en grilla horizontal.
+    - options: lista de temas
+    - selected: tema actualmente seleccionado
+    - key_prefix: prefijo único para las keys de Streamlit
+    - n_cols: cantidad de columnas por fila
+    """
+    if n_cols < 1:
+        n_cols = 1
+    rows = [options[i:i+n_cols] for i in range(0, len(options), n_cols)]
+    for r, row in enumerate(rows):
+        cols = st.columns(len(row))
+        for c, t in enumerate(row):
+            with cols[c]:
+                is_sel = (t == selected)
+                label = ("✓ " + t) if is_sel else t
+                if is_sel:
+                    # botón deshabilitado para señalar la selección actual
+                    st.button(label, key=f"{key_prefix}_{r}_{c}_active", disabled=True, use_container_width=True)
+                else:
+                    if st.button(label, key=f"{key_prefix}_{r}_{c}", use_container_width=True):
+                        st.session_state["tema"] = t
 
-def chips_row(options, selected, key_prefix):
-    # chips en filas flex (gracias al CSS). Usamos botones y marcamos el activo con una clase.
-    row = st.container()
-    with row:
-        st.markdown('<div class="chips-row">', unsafe_allow_html=True)
-        for i, t in enumerate(options):
-            # Para resaltar el seleccionado, metemos el botón en un contenedor con clase 'chip-active'
-            if t == selected:
-                with st.container():
-                    st.markdown('<div class="chip-active">', unsafe_allow_html=True)
-                    st.button("✓ " + t, key=f"{key_prefix}_{i}_active", use_container_width=False, disabled=True)
-                    st.markdown("</div>", unsafe_allow_html=True)
-            else:
-                if st.button(t, key=f"{key_prefix}_{i}", use_container_width=False):
-                    st.session_state["tema"] = t
-        st.markdown('</div>', unsafe_allow_html=True)
+# ---- Subventanas (tabs) + chips horizontales ----
+tab_base, tab_esp = st.tabs(["📚 Familia orgánica", "🧪 Grupos especiales"])
 
 with tab_base:
     st.caption("Elegí rápidamente una familia de **Orgánica base**")
-    chips_row(TEMAS_BASE, st.session_state["tema"], "chip_base")
+    chips_grid(TEMAS_BASE, st.session_state["tema"], "chip_base", n_cols=4)
 
 with tab_esp:
     st.caption("Elegí un tema de **Grupos especiales**")
-    chips_row(TEMAS_ESPECIALES, st.session_state["tema"], "chip_esp")
+    chips_grid(TEMAS_ESPECIALES, st.session_state["tema"], "chip_esp", n_cols=5)
 
 # Variable de trabajo final
 tema = st.session_state["tema"]
