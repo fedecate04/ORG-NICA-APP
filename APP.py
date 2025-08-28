@@ -20,6 +20,14 @@ TEMAS = [
     "Aminoácidos","Lípidos y proteínas",
 ]
 
+# ===== Límites de carga (ajusta si lo necesitás) =====
+MAX_UPLOAD_MB = 50  # tope “seguro”; para videos grandes usa enlaces externos
+def too_big(uploaded_file) -> bool:
+    return getattr(uploaded_file, "size", 0) > MAX_UPLOAD_MB * 1024 * 1024
+
+def human_mb(nbytes: int) -> str:
+    return f"{nbytes/1024/1024:.1f} MB"
+
 # === Secrets (NO van en el repo; cargalas en Streamlit Secrets) ===
 SUPABASE_URL    = st.secrets["SUPABASE_URL"]
 SUPABASE_KEY    = st.secrets["SUPABASE_KEY"]          # service_role
@@ -183,7 +191,9 @@ def write_meta(tema: str, meta: dict):
                    content_type="application/json")
 
 def get_title(meta, bucket, filename):
-    return meta.get("titles", {}).get(bucket, {}).get(filename, "")
+    return meta.get("titles", {}).get(bucket, {}).get(filename, ""
+
+)
 
 def set_title(meta, bucket, filename, title):
     meta.setdefault("titles", {}).setdefault(bucket, {})
@@ -298,13 +308,16 @@ with tabs[0]:
         with c2:
             titulo_pdf = st.text_input("Título (opcional) para el PDF", key=f"res_title_{tema}")
         if up is not None:
-            dst = bucket_join(topic_prefix(tema), "resumenes", f"{int(time.time())}_{safe_filename(up.name)}")
-            storage_upload(dst, up.read(), content_type="application/pdf")
-            if titulo_pdf.strip():
-                meta = read_meta(tema)
-                set_title(meta, "resumenes", dst.split("/")[-1], titulo_pdf.strip())
-                write_meta(tema, meta)
-            st.success(f"Subido: {up.name}")
+            if too_big(up):
+                st.error(f"El archivo ({human_mb(up.size)}) supera {MAX_UPLOAD_MB} MB. Comprimilo o subilo como enlace.")
+            else:
+                dst = bucket_join(topic_prefix(tema), "resumenes", f"{int(time.time())}_{safe_filename(up.name)}")
+                storage_upload(dst, up.read(), content_type="application/pdf")
+                if titulo_pdf.strip():
+                    meta = read_meta(tema)
+                    set_title(meta, "resumenes", dst.split("/")[-1], titulo_pdf.strip())
+                    write_meta(tema, meta)
+                st.success(f"Subido: {up.name}")
     render_list("resumenes", tema, exts={".pdf"})
 
 # ================== TAB 2: APUNTES ==================
@@ -317,13 +330,16 @@ with tabs[1]:
         with c2:
             titulo_pdf = st.text_input("Título (opcional) para el PDF", key=f"apu_title_{tema}")
         if up is not None:
-            dst = bucket_join(topic_prefix(tema), "apuntes", f"{int(time.time())}_{safe_filename(up.name)}")
-            storage_upload(dst, up.read(), content_type="application/pdf")
-            if titulo_pdf.strip():
-                meta = read_meta(tema)
-                set_title(meta, "apuntes", dst.split("/")[-1], titulo_pdf.strip())
-                write_meta(tema, meta)
-            st.success(f"Subido: {up.name}")
+            if too_big(up):
+                st.error(f"El archivo ({human_mb(up.size)}) supera {MAX_UPLOAD_MB} MB. Comprimilo o subilo como enlace.")
+            else:
+                dst = bucket_join(topic_prefix(tema), "apuntes", f"{int(time.time())}_{safe_filename(up.name)}")
+                storage_upload(dst, up.read(), content_type="application/pdf")
+                if titulo_pdf.strip():
+                    meta = read_meta(tema)
+                    set_title(meta, "apuntes", dst.split("/")[-1], titulo_pdf.strip())
+                    write_meta(tema, meta)
+                st.success(f"Subido: {up.name}")
     render_list("apuntes", tema, exts={".pdf"})
 
 # ================== TAB 3: VIDEOS ==================
@@ -339,12 +355,15 @@ with tabs[2]:
         with c2:
             titulo_mp4 = st.text_input("Título (opcional) del video", key=f"vid_title_{tema}")
         if up is not None:
-            dst = bucket_join(topic_prefix(tema), "videos", f"{int(time.time())}_{safe_filename(up.name)}")
-            storage_upload(dst, up.read(), content_type="video/mp4")
-            if titulo_mp4.strip():
-                set_title(meta, "videos", dst.split("/")[-1], titulo_mp4.strip())
-                write_meta(tema, meta)
-            st.success(f"Subido: {up.name}")
+            if too_big(up):
+                st.error(f"El video ({human_mb(up.size)}) supera {MAX_UPLOAD_MB} MB. Subilo como enlace (YouTube/Drive/Zoom) o recomprimilo (720p).")
+            else:
+                dst = bucket_join(topic_prefix(tema), "videos", f"{int(time.time())}_{safe_filename(up.name)}")
+                storage_upload(dst, up.read(), content_type="video/mp4")
+                if titulo_mp4.strip():
+                    set_title(meta, "videos", dst.split("/")[-1], titulo_mp4.strip())
+                    write_meta(tema, meta)
+                st.success(f"Subido: {up.name}")
 
     # b) Enlaces externos (YouTube/Drive/Zoom)
     links = meta.get("video_links", [])
@@ -393,16 +412,19 @@ with tabs[3]:
         with c2:
             titulo_aud = st.text_input("Título (opcional) del audio", key=f"aud_title_{tema}")
         if up is not None:
-            dst = bucket_join(topic_prefix(tema), "audios", f"{int(time.time())}_{safe_filename(up.name)}")
-            mime = {
-                ".mp3":"audio/mpeg", ".wav":"audio/wav", ".m4a":"audio/mp4", ".ogg":"audio/ogg"
-            }.get(Path(up.name).suffix.lower(), "application/octet-stream")
-            storage_upload(dst, up.read(), content_type=mime)
-            if titulo_aud.strip():
-                meta = read_meta(tema)
-                set_title(meta, "audios", dst.split("/")[-1], titulo_aud.strip())
-                write_meta(tema, meta)
-            st.success(f"Subido: {up.name}")
+            if too_big(up):
+                st.error(f"El audio ({human_mb(up.size)}) supera {MAX_UPLOAD_MB} MB. Comprimilo (mp3 ~128 kbps) o subilo como enlace.")
+            else:
+                dst = bucket_join(topic_prefix(tema), "audios", f"{int(time.time())}_{safe_filename(up.name)}")
+                mime = {
+                    ".mp3":"audio/mpeg", ".wav":"audio/wav", ".m4a":"audio/mp4", ".ogg":"audio/ogg"
+                }.get(Path(up.name).suffix.lower(), "application/octet-stream")
+                storage_upload(dst, up.read(), content_type=mime)
+                if titulo_aud.strip():
+                    meta = read_meta(tema)
+                    set_title(meta, "audios", dst.split("/")[-1], titulo_aud.strip())
+                    write_meta(tema, meta)
+                st.success(f"Subido: {up.name}")
     render_list("audios", tema, exts={".mp3",".wav",".m4a",".ogg"}, media="audio")
 
 # ================== PIE ==================
