@@ -35,23 +35,83 @@ SUPABASE_BUCKET = st.secrets.get("SUPABASE_BUCKET", "utn")
 COURSE_ROOT     = st.secrets.get("COURSE_ROOT", "Quimica_Organica")
 PASSCODE        = st.secrets.get("PASSCODE", "FFCC")
 
-# ================== ESTILO ==================
+# ================== ESTILO (tema oscuro + neón) ==================
 st.markdown("""
 <style>
-.stApp { background: #f5f8ff; }
-[data-testid="stSidebar"] { background: #eef3ff; }
-.block-container { padding-top: 1rem; }
-div[role="tablist"] button { border-radius: 10px !important; }
-.stButton>button, .stDownloadButton>button { border-radius: 10px; }
-.badge { display:inline-block; padding:3px 10px; border-radius:20px;
-  background:#e6ecff; color:#1a2b69; font-size:0.85rem; margin-left:.5rem; }
+:root{
+  --bg:#0b1220;
+  --panel:#0f1a2b;
+  --soft:#101a30;
+  --text:#e6eeff;
+  --muted:#9fb0d8;
+  --accent:#5ee7ff; /* cian neón */
+  --accent-2:#8a5eff; /* violeta neón */
+  --ring: 0 0 12px var(--accent);
+  --ring2: 0 0 18px var(--accent-2);
+}
+.stApp { background: radial-gradient(1200px 600px at 10% -10%, #13223b 0%, var(--bg) 45%) fixed; color:var(--text); }
+[data-testid="stSidebar"] { background: linear-gradient(180deg, #0c1628 0%, #0a1322 100%); border-right: 1px solid #162743; }
+.block-container { padding-top: .8rem; }
+h1, h2, h3, h4 { color: var(--text) !important; }
+p, span, label, .stMarkdown, .stTextInput label { color: var(--text) !important; }
+.small, .caption, .st-emotion-cache-16idsys { color: var(--muted) !important; }
+div[role="tablist"] button {
+  background: linear-gradient(180deg, #0f1d33 0%, #0b1527 100%) !important;
+  color: var(--muted) !important;
+  border: 1px solid #1c3258 !important;
+  border-radius: 12px !important;
+  box-shadow: inset 0 -1px 0 #091221;
+}
+div[role="tablist"] button[aria-selected="true"]{
+  color: #dff7ff !important;
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 1px var(--accent), var(--ring);
+}
+.stButton>button, .stDownloadButton>button {
+  background: linear-gradient(90deg, rgba(94,231,255,.12), rgba(138,94,255,.12));
+  border: 1px solid #1c3258;
+  color: #dff7ff;
+  border-radius: 12px;
+  padding: .55rem 1rem;
+  transition: all .18s ease;
+}
+.stButton>button:hover, .stDownloadButton>button:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent), var(--ring);
+  transform: translateY(-1px);
+}
+.stButton>button:active { transform: translateY(0px) scale(.99); }
+.stTextInput>div>div>input, .stTextArea textarea, .stSelectbox div[data-baseweb="select"] {
+  background: #0d182b !important;
+  color: var(--text) !important;
+  border: 1px solid #1b2f52 !important;
+  border-radius: 10px !important;
+}
+.stTextInput>div>div>input:focus, .stTextArea textarea:focus {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 1px var(--accent), var(--ring);
+}
+.badge { display:inline-block; padding:4px 12px; border-radius:20px;
+  background: rgba(94,231,255,.12); color:#cdecff; font-size:.85rem; margin-left:.5rem;
+  border:1px solid rgba(94,231,255,.35); box-shadow: var(--ring);
+}
+[data-testid="stAlert"]{
+  background: linear-gradient(180deg,#0f1e36,#0b1527) !important;
+  border:1px solid #193158 !important;
+  color:#cfe6ff !important;
+  border-radius:12px !important;
+}
+.st-emotion-cache-1n76uvr, .st-emotion-cache-1v0mbdj { background: transparent !important; }
+hr, .stMarkdown hr { border: none; height:1px; background: linear-gradient(90deg, transparent, #2a4d83, transparent); }
+a { color:#8ddfff; text-decoration: none; }
+a:hover { text-shadow: 0 0 8px #5ee7ff; }
+.block:hover { box-shadow: 0 0 0 1px #193158, 0 0 12px rgba(94,231,255,.12); transition: box-shadow .2s; }
 </style>
 """, unsafe_allow_html=True)
 
 # ================== SUPABASE CLIENT ==================
 from supabase import create_client, Client
 try:
-    # Según versión puede existir este submódulo
     from storage3.exceptions import StorageApiError
 except Exception:
     class StorageApiError(Exception):
@@ -89,7 +149,7 @@ def safe_folder(name: str) -> str:
 def safe_filename(name: str) -> str:
     s = unicodedata.normalize("NFKD", name).encode("ascii","ignore").decode("ascii")
     s = s.strip().replace(" ", "_")
-    return re.sub(r"[^\w\.\-]", "_", s)  # permite letras/números/_ . -
+    return re.sub(r"[^\w\.\-]", "_", s)
 
 def topic_prefix(tema: str) -> str:
     return f"{COURSE_ROOT}/{safe_folder(tema)}"
@@ -108,33 +168,28 @@ def storage_list(folder_path: str):
     except Exception:
         return []
 
-# --- Enlaces embebibles vs. solo link ---
 def should_embed(url: str) -> bool:
     host = urlparse(url).netloc.lower()
     if "youtube.com" in host or "youtu.be" in host or "vimeo.com" in host:
         return True
-    # Embed de Drive sólo si está en modo /preview
     return "drive.google.com" in host and "/preview" in url
 
 def drive_preview_url(url: str) -> str:
     u = urlparse(url)
     if "drive.google.com" not in u.netloc.lower():
         return url
-    # /file/d/<ID>/view → /file/d/<ID>/preview
     if "/file/d/" in u.path:
         try:
             file_id = u.path.split("/file/d/")[1].split("/")[0]
             return f"https://drive.google.com/file/d/{file_id}/preview"
         except Exception:
             return url
-    # /open?id=<ID> → /file/d/<ID>/preview
     qs = parse_qs(u.query)
     if "id" in qs and qs["id"]:
         file_id = qs["id"][0]
         return f"https://drive.google.com/file/d/{file_id}/preview"
     return url
 
-# ⬇️ Upload robusto (captura StorageException) + sanea ruta
 def storage_upload(dst_path: str, data_bytes: bytes, content_type: str):
     dst_path = re.sub(r"[^\w\-/\.]", "_", dst_path)
     with tempfile.NamedTemporaryFile(delete=False) as tmp:
@@ -200,7 +255,6 @@ def public_url(path: str) -> str | None:
     except Exception:
         return None
 
-# ---- meta.json por tema (títulos y enlaces) ----
 def read_meta(tema: str) -> dict:
     p = bucket_join(topic_prefix(tema), "meta.json")
     raw = storage_download(p)
@@ -235,18 +289,40 @@ def delete_link(meta, idx):
     except Exception:
         pass
 
-# ================== CABECERA ==================
-col_logo, col_title = st.columns([1, 3], vertical_alignment="center")
+# ================== CABECERA (logo grande + UTN/FRN + intro) ==================
+col_logo, col_title = st.columns([1.1, 3], vertical_alignment="center")
+
 with col_logo:
     if Path("logoutn.png").exists():
         st.image("logoutn.png", use_container_width=True)
     else:
         st.info("Subí **logoutn.png** a la raíz del repo para ver el logo aquí.")
+    st.markdown(
+        """
+        <div style="margin-top:.4rem; line-height:1.15">
+          <div style="font-weight:700; letter-spacing:.5px;">UNIVERSIDAD TECNOLÓGICA NACIONAL</div>
+          <div style="opacity:.85;">FACULTAD REGIONAL DEL NEUQUÉN</div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
 with col_title:
     st.title(TITULO)
     st.subheader(PROFESOR)
     st.write(ALUMNOS)
     st.markdown('<span class="badge">Repositorio académico – Supabase Storage</span>', unsafe_allow_html=True)
+
+st.markdown("""
+---
+### 🧪 ¿Qué es esta aplicación?
+Esta interfaz te permite **organizar y acceder** al material didáctico del curso de **Química Orgánica**:
+- Subí y consultá **resúmenes** y **apuntes** en PDF.  
+- Agregá **videos** (MP4 o enlaces YouTube/Drive/Zoom) y **audios** de estudio.  
+- Renombrá, eliminá y gestioná el material por **tema** de forma segura.
+
+> **Tip:** activá el *modo edición* para cargar/gestionar archivos. Debajo vas a encontrar **pestañas rápidas por tema** para navegar más ágil.
+""")
 st.markdown("---")
 
 # ================== MODO EDICIÓN ==================
@@ -268,9 +344,28 @@ with st.expander("🔐 Modo edición (subir/borrar/renombrar)", expanded=False):
             else:
                 st.error("Código incorrecto.")
 
-# ================== NAVEGACIÓN ==================
+# ====== PESTAÑAS RÁPIDAS DE TEMAS (debajo del bloque de contraseña) ======
+if "tema_idx" not in st.session_state:
+    st.session_state["tema_idx"] = 0
+st.markdown("#### 🚀 Acceso rápido por tema")
+tema_tabs = st.tabs(TEMAS)
+for i, t in enumerate(TEMAS):
+    with tema_tabs[i]:
+        st.caption(f"Seleccionar **{t}**")
+        if st.button("Abrir este tema", key=f"pick_{i}"):
+            st.session_state["tema_idx"] = i
+            st.rerun()
+
+# ================== NAVEGACIÓN (sidebar sincronizada) ==================
 st.sidebar.header("Navegación")
-tema = st.sidebar.selectbox("Elegí un tema", TEMAS, index=0)
+tema = st.sidebar.selectbox(
+    "Elegí un tema",
+    TEMAS,
+    index=st.session_state["tema_idx"],
+    key="tema_select"
+)
+st.session_state["tema_idx"] = TEMAS.index(tema)
+tema = TEMAS[st.session_state["tema_idx"]]
 
 tabs = st.tabs([
     "📄 PDF Resúmenes", "📘 PDF Apuntes del profesor",
@@ -461,5 +556,5 @@ with tabs[3]:
 
 # ================== PIE ==================
 st.markdown("---")
-st.caption(f"Archivos en Supabase Storage (bucket: {SUPABASE_BUCKET}). "
-           "Para Años/Materias, se puede anteponer 'Año/Materia' a la ruta y agregar dos selectores.")
+# Pie discreto (sin el texto anterior)
+st.caption(" ")
