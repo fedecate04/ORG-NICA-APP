@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 import io, os, json, time, tempfile, unicodedata, re
 from pathlib import Path
-from urllib.parse import urlsplit, urlunsplit, quote
+from urllib.parse import urlsplit, urlunsplit, quote, urlparse, parse_qs
 import streamlit as st
 
 # ================== CONFIG BÁSICA ==================
@@ -108,6 +108,32 @@ def storage_list(folder_path: str):
     except Exception:
         return []
 
+# --- Enlaces embebibles vs. solo link ---
+def should_embed(url: str) -> bool:
+    host = urlparse(url).netloc.lower()
+    if "youtube.com" in host or "youtu.be" in host or "vimeo.com" in host:
+        return True
+    # Embed de Drive sólo si está en modo /preview
+    return "drive.google.com" in host and "/preview" in url
+
+def drive_preview_url(url: str) -> str:
+    u = urlparse(url)
+    if "drive.google.com" not in u.netloc.lower():
+        return url
+    # /file/d/<ID>/view → /file/d/<ID>/preview
+    if "/file/d/" in u.path:
+        try:
+            file_id = u.path.split("/file/d/")[1].split("/")[0]
+            return f"https://drive.google.com/file/d/{file_id}/preview"
+        except Exception:
+            return url
+    # /open?id=<ID> → /file/d/<ID>/preview
+    qs = parse_qs(u.query)
+    if "id" in qs and qs["id"]:
+        file_id = qs["id"][0]
+        return f"https://drive.google.com/file/d/{file_id}/preview"
+    return url
+
 # ⬇️ Upload robusto (captura StorageException) + sanea ruta
 def storage_upload(dst_path: str, data_bytes: bytes, content_type: str):
     dst_path = re.sub(r"[^\w\-/\.]", "_", dst_path)
@@ -191,9 +217,7 @@ def write_meta(tema: str, meta: dict):
                    content_type="application/json")
 
 def get_title(meta, bucket, filename):
-    return meta.get("titles", {}).get(bucket, {}).get(filename, ""
-
-)
+    return meta.get("titles", {}).get(bucket, {}).get(filename, "")
 
 def set_title(meta, bucket, filename, title):
     meta.setdefault("titles", {}).setdefault(bucket, {})
@@ -388,16 +412,24 @@ with tabs[2]:
         for i, it in enumerate(links):
             cols = st.columns([5,1]) if st.session_state["can_edit"] else st.columns([6])
             with cols[0]:
-                if it.get("titulo"):
-                    st.write(f"**{it['titulo']}**")
-                st.video(it.get("url",""))
+                titulo = (it.get("titulo") or "Video")
+                url_raw = (it.get("url") or "").strip()
+                url_norm = drive_preview_url(url_raw)
+                if should_embed(url_norm):
+                    st.write(f"**{titulo}**")
+                    st.video(url_norm)
+                    st.markdown(f"[Abrir en pestaña]({_encode_url(url_norm)})")
+                else:
+                    st.write(f"**{titulo}**")
+                    st.markdown(f"[Abrir enlace]({_encode_url(url_norm)})")
             if st.session_state["can_edit"]:
-                if st.button("🗑️ Eliminar enlace", key=f"del_link_{i}"):
-                    meta = read_meta(tema)
-                    delete_link(meta, i)
-                    write_meta(tema, meta)
-                    st.success("Enlace eliminado.")
-                    st.rerun()
+                with cols[1]:
+                    if st.button("🗑️ Eliminar enlace", key=f"del_link_{i}"):
+                        meta = read_meta(tema)
+                        delete_link(meta, i)
+                        write_meta(tema, meta)
+                        st.success("Enlace eliminado.")
+                        st.rerun()
     else:
         if not storage_list(bucket_join(topic_prefix(tema), "videos")):
             st.info("Todavía no hay videos cargados.")
