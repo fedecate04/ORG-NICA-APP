@@ -1,4 +1,4 @@
-# APP.py
+ # APP.py
 # -*- coding: utf-8 -*-
 import io, os, json, time, tempfile, unicodedata, re
 from pathlib import Path
@@ -45,7 +45,7 @@ SUPABASE_BUCKET = st.secrets.get("SUPABASE_BUCKET", "utn")
 COURSE_ROOT     = st.secrets.get("COURSE_ROOT", "Quimica_Organica")
 PASSCODE        = st.secrets.get("PASSCODE", "FFCC")
 
-# ================== ESTILO (UTN compacto) ==================
+# ================== ESTILO (UTN compacto y claro) ==================
 st.markdown(f"""
 <style>
 :root{{
@@ -54,21 +54,15 @@ st.markdown(f"""
   --soft:#f1f3f9;
   --text:#0b1221;
   --muted:#5b6579;
-  --accent:#1f2a44;      /* UTN dark blue */
-  --accent-2:#2e5aac;    /* UTN medium blue */
+  --accent:#1f2a44;
+  --accent-2:#2e5aac;
   --border:#e6e8f0;
   --radius:10px;
   --radius-lg:12px;
 }}
 
 html, body, .stApp {{ background: var(--bg); color: var(--text); }}
-
-/* Contenedor más angosto y compacto */
-.block-container {{
-  padding-top: .6rem;
-  padding-bottom: .8rem;
-  max-width: 1180px;
-}}
+.block-container {{ padding-top:.6rem; padding-bottom:.8rem; max-width:1180px; }}
 
 [data-testid="stSidebar"] {{
   background: var(--panel);
@@ -81,28 +75,38 @@ p, span, label, .stMarkdown, .stTextInput label {{ color: var(--text) !important
 
 hr, .stMarkdown hr {{ border: none; height:1px; background: linear-gradient(90deg, transparent, var(--border), transparent); }}
 
-.st-emotion-cache-1n76uvr, .st-emotion-cache-1v0mbdj {{ background: transparent !important; }}
-
-/* ---- Hero más chico ---- */
-.hero {{ text-align:center; margin: 6px 0 6px 0; }}
-.hero img {{ max-width: 360px; margin: 0 auto; display:block; }}
-.hero .inst {{ margin-top:.35rem; line-height:1.15; }}
-.hero .inst .u {{ font-weight:700; letter-spacing:.3px; }}
-.hero .inst .f {{ color:#1f2a44; }}
-.hero .inst .c {{ margin-top:.15rem; font-weight:700; color: var(--accent-2); }}
-.hero .meta {{ margin-top:.2rem; color:#2b3a57; font-size:.95rem; }}
-
-/* ---- Banner edición ---- */
-.edit-banner{{
-  background:#e6edff;
-  border:1px solid #d5defb;
-  color:#263b80;
-  padding:6px 10px;
-  border-radius:var(--radius);
-  margin:.2rem 0 .5rem 0;
+/* ====== Encabezado nuevo ====== */
+.header-wrap {{
+  display:grid; grid-template-columns: 1fr 320px; gap:16px; align-items:center;
+  margin: 6px 0 8px 0;
+}}
+.header-left {{ text-align:center; }}
+.header-logo img {{ max-width: 520px; width: 100%; height:auto; margin:0 auto; display:block; }}
+.header-uni   {{ margin-top:.6rem; font-weight:800; font-size:1.6rem; letter-spacing:.3px; }}
+.header-fac   {{ margin-top:.15rem; font-weight:700; font-size:1.15rem; color:#24324d; }}
+.header-cat   {{ margin-top:.8rem; font-weight:800; font-size:1.9rem; color: var(--accent-2); }}
+.header-meta  {{
+  background:#fff; border:1px solid var(--border); border-radius:var(--radius-lg);
+  padding:.7rem .9rem; font-size:.95rem;
+}}
+.header-meta strong {{ font-weight:700; }}
+@media (max-width: 900px) {{
+  .header-wrap {{ grid-template-columns: 1fr; }}
+  .header-meta {{ justify-self:center; width: min(360px, 100%); }}
+  .header-logo img {{ max-width: 420px; }}
 }}
 
-/* ---- Card más compacta ---- */
+/* Línea fina separadora */
+.thin-sep {{ height:1px; background:var(--border); margin:10px 0 6px 0; }}
+
+/* ---- Botón editar sutil ---- */
+.edit-inline button {{
+  background:#ffffff; color:#1f2a44; border:1px solid var(--border);
+  border-radius:8px; padding:.28rem .6rem; font-weight:600;
+}}
+.edit-inline button:hover {{ background:#f4f6fb; border-color:#cfd7ea; }}
+
+/* ---- Card compacta ---- */
 .card {{
   background: var(--panel);
   border: 1px solid var(--border);
@@ -111,8 +115,8 @@ hr, .stMarkdown hr {{ border: none; height:1px; background: linear-gradient(90de
   box-shadow: 0 1px 2px rgba(15,23,42,.05);
 }}
 
-/* ---- Tabs sobrios ---- */
-div[role="tablist"] {{ gap:.35rem; }}
+/* Tabs sobrios */
+div[role="tablist"] {{ gap:.35rem; border-top:1px solid var(--border); padding-top:.35rem; }}
 div[role="tablist"] button {{
   background: #fafbff !important;
   color: var(--muted) !important;
@@ -128,7 +132,7 @@ div[role="tablist"] button[aria-selected="true"]{{
   box-shadow: 0 0 0 2px rgba(46,90,172,.10);
 }}
 
-/* ---- Botones UTN ---- */
+/* Botones */
 .stButton>button, .stDownloadButton>button {{
   background: var(--accent);
   color: #ffffff;
@@ -141,58 +145,34 @@ div[role="tablist"] button[aria-selected="true"]{{
 .stButton>button:hover, .stDownloadButton>button:hover {{ background: var(--accent-2); }}
 .stButton>button:active {{ transform: translateY(1px); }}
 
-/* ---- Inputs compactos ---- */
+/* Inputs compactos */
 .stTextInput>div>div>input, .stTextArea textarea, .stSelectbox div[data-baseweb="select"] {{
-  background: #ffffff !important;
-  color: var(--text) !important;
-  border: 1px solid var(--border) !important;
-  border-radius: var(--radius) !important;
+  background: #ffffff !important; color: var(--text) !important;
+  border: 1px solid var(--border) !important; border-radius: var(--radius) !important;
   padding:.45rem .6rem !important;
 }}
 .stTextInput>div>div>input:focus, .stTextArea textarea:focus {{
-  border-color: var(--accent-2) !important;
-  box-shadow: 0 0 0 2px rgba(46,90,172,.12);
+  border-color: var(--accent-2) !important; box-shadow: 0 0 0 2px rgba(46,90,172,.12);
 }}
 
-/* ---- Expander/Alert sobrios ---- */
-[data-testid="stExpander"] {{
-  border: 1px solid var(--border);
-  background: var(--panel);
-  border-radius: var(--radius-lg);
-}}
-[data-testid="stAlert"]{{
-  background: var(--soft) !important;
-  border:1px solid var(--border) !important;
-  color:var(--text) !important;
-  border-radius:var(--radius-lg) !important;
-}}
-
-/* ---- Chips / Temas (grid responsivo) ---- */
+/* Chips / Temas: BLANCOS + hover claro */
 .chipbar {{ margin-top:.2rem; }}
-.chipbar .title {{ font-weight:700; margin:.1rem 0 .35rem 0; color:#1f2a44; }}
+.chipbar .title {{ font-weight:800; margin:.1rem 0 .35rem 0; color:#1f2a44; }}
 .chipgrid {{
-  display:grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 8px;
+  display:grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px;
 }}
 .chipgrid .chipbtn {{
-  width: 100%;
-  background: #f3f5f9;
-  border: 1px solid var(--border);
-  padding: .42rem .6rem;
-  font-size: .92rem;
-  border-radius: 16px;
-  color: var(--text);
-  text-align:center;
+  width: 100%; background:#ffffff; color:#111827;
+  border: 1px solid var(--border); padding: .48rem .66rem;
+  font-size: .96rem; border-radius: 16px; text-align:center;
 }}
-.chipgrid .chipbtn:hover {{ background:#eef2f9; border-color: var(--accent-2); }}
+.chipgrid .chipbtn:hover {{ background:#f5f7ff; border-color:#cfd7ea; }}
 
-/* ---- Filas de recursos compactas ---- */
+/* Filas de recursos compactas */
 .res-row {{
   display:flex; align-items:center; gap:10px;
   padding:.45rem .55rem; border:1px solid var(--border);
-  border-radius: var(--radius); background:#fff;
-  margin-bottom:6px;
+  border-radius: var(--radius); background:#fff; margin-bottom:6px;
 }}
 .res-row:hover {{ background:#fafbff; }}
 .res-title {{ font-weight:600; }}
@@ -297,9 +277,9 @@ def storage_upload(dst_path: str, data_bytes: bytes, content_type: str):
             try:
                 info = (e.args or [{}])[0]
                 status = info.get("statusCode"); msg = info.get("message") or info.get("error") or info
-                st.warning(f"Upload falló (status={status}). Intento update(). Detalle: {msg}")
+                st.warning(f"Upload falló (status={{status}}). Intento update(). Detalle: {{msg}}")
             except Exception:
-                st.warning(f"Upload falló. Intento update(). Detalle: {repr(e)}")
+                st.warning(f"Upload falló. Intento update(). Detalle: {{repr(e)}}")
             try:
                 return supa.storage.from_(SUPABASE_BUCKET).update(
                     dst_path, tmp_path,
@@ -310,7 +290,7 @@ def storage_upload(dst_path: str, data_bytes: bytes, content_type: str):
                     info2 = (e2.args or [{}])[0]
                     status2 = info2.get("statusCode")
                     msg2 = info2.get("message") or info2.get("error") or info2
-                    st.error(f"Update también falló (status={status2}).")
+                    st.error(f"Update también falló (status={{status2}}).")
                     st.code(json.dumps(info2, ensure_ascii=False, indent=2))
                 except Exception:
                     st.error("Update también falló."); st.code(repr(e2))
@@ -374,79 +354,89 @@ def delete_link(meta, idx):
     except Exception:
         pass
 
-# ================== HERO CENTRADO (logo + textos) ==================
-st.markdown('<div class="hero">', unsafe_allow_html=True)
-if Path("logoutn.png").exists():
-    st.image("logoutn.png", use_container_width=False)
-else:
-    st.info("Subí **logoutn.png** a la raíz del repo para ver el logo aquí.")
-st.markdown(f"""
-<div class="inst">
-  <div class="u">UNIVERSIDAD TECNOLÓGICA NACIONAL</div>
-  <div class="f">FACULTAD REGIONAL DEL NEUQUÉN</div>
-  <div class="c">CÁTEDRA DE {TITULO.upper()}</div>
-</div>
-<div class="meta">
-  <div><strong>{PROFESOR}</strong></div>
-  <div>{ALUMNOS}</div>
-</div>
-""", unsafe_allow_html=True)
-st.markdown('</div>', unsafe_allow_html=True)
-st.markdown("---")
+# ================== ENCABEZADO NUEVO ==================
+col = st.container()
+with col:
+    st.markdown('<div class="header-wrap">', unsafe_allow_html=True)
 
-# ================== MODO EDICIÓN ==================
+    # Columna principal (logo + textos centrales)
+    left = st.container()
+    with left:
+        st.markdown('<div class="header-left">', unsafe_allow_html=True)
+        # Logo grande centrado
+        if Path("logoutn.png").exists():
+            st.markdown('<div class="header-logo">', unsafe_allow_html=True)
+            st.image("logoutn.png", use_container_width=False)
+            st.markdown('</div>', unsafe_allow_html=True)
+        else:
+            st.info("Subí **logoutn.png** a la raíz del repo para ver el logo aquí.")
+
+        # Textos institucionales centrados y separados
+        st.markdown(f"""
+        <div class="header-uni">UNIVERSIDAD TECNOLÓGICA NACIONAL</div>
+        <div class="header-fac">FACULTAD REGIONAL DEL NEUQUÉN</div>
+        <div class="header-cat">{TITULO}</div>
+        """, unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    # Columna lateral (profesor y alumnos)
+    right = st.container()
+    with right:
+        st.markdown(f"""
+        <div class="header-meta">
+          <div><strong>Profesor:</strong> Israel Funes</div>
+          <div><strong>Alumnos:</strong> Carrasco Federico & Catereniuc Federico</div>
+          <div class="small" style="margin-top:.3rem;">(Bloque lateral, menor jerarquía)</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown('</div>', unsafe_allow_html=True)  # cierra header-wrap
+
+# Línea fina separadora
+st.markdown('<div class="thin-sep"></div>', unsafe_allow_html=True)
+
+# ================== MODO EDICIÓN (botón sutil) ==================
 if "can_edit" not in st.session_state:
     st.session_state["can_edit"] = False
-# Banner si está activo
-if st.session_state["can_edit"]:
-    st.markdown('<div class="edit-banner">Modo edición activo</div>', unsafe_allow_html=True)
+if "ask_pass" not in st.session_state:
+    st.session_state["ask_pass"] = False
 
-with st.expander("🔐 Modo edición (subir/borrar/renombrar)", expanded=False):
-    if st.session_state["can_edit"]:
-        if st.button("Cerrar modo edición"):
-            st.session_state["can_edit"] = False
-            st.rerun()
+c1, c2 = st.columns([1,5])
+with c1:
+    if not st.session_state["can_edit"]:
+        with st.container():
+            if st.button("🔒 Editar", key="btn_edit", help="Entrar a modo edición", type="secondary"):
+                st.session_state["ask_pass"] = True
     else:
-        code = st.text_input("Ingresá el código de edición", type="password")
-        if st.button("Ingresar"):
-            if code.strip() == PASSCODE:
+        if st.button("✅ Cerrar edición", key="btn_close_edit"):
+            st.session_state["can_edit"] = False
+            st.session_state["ask_pass"] = False
+            st.rerun()
+
+with c2:
+    if st.session_state["ask_pass"] and not st.session_state["can_edit"]:
+        code = st.text_input("Ingresá el código de edición", type="password", key="pass_input")
+        go = st.button("Ingresar")
+        if go:
+            if (code or "").strip() == PASSCODE:
                 st.session_state["can_edit"] = True
                 st.success("Modo edición activado.")
+                st.session_state["ask_pass"] = False
                 st.rerun()
             else:
                 st.error("Código incorrecto.")
 
-# ====== INFORMACIÓN (desplegables) ======
-with st.expander("❓ ¿Qué es esta aplicación?", expanded=False):
-    st.markdown("""
-Esta interfaz te permite **organizar y acceder** al material didáctico de **Química Orgánica** por tema:
-- Subí y consultá **resúmenes** y **apuntes** en PDF.  
-- Agregá **videos** (MP4 o enlaces YouTube/Drive/Zoom) y **audios** de estudio.  
-- Renombrá, eliminá y gestioná el material por **tema** de forma segura (con *modo edición*).
-    """)
+# (Se eliminaron los expanders informativos, como pediste)
 
-with st.expander("🌎 Introducción: ¿por qué importa la Química Orgánica?", expanded=False):
-    st.markdown("""
-La **Química Orgánica** estudia los compuestos del **carbono**.
-- **Vida y salud**: biomoléculas y fármacos.  
-- **Energía y materiales**: hidrocarburos y polímeros.  
-- **Industria**: refino, petroquímica, alimentos, cosmética y más.
-
-Dominar **estructuras** y **mecanismos** permite **predecir y diseñar** transformaciones.
-    """)
-
-st.markdown("---")
-
-# ====== ACCESO RÁPIDO POR TEMA (grid responsivo) ======
+# ====== FAMILIA ORGÁNICA (antes “Acceso rápido…”) ======
 if "tema_idx" not in st.session_state:
     st.session_state["tema_idx"] = 0
 
 def chip_row(titulo: str, lista_temas: list, prefix_key: str):
     st.markdown('<div class="chipbar">', unsafe_allow_html=True)
     st.markdown(f'<div class="title">{titulo}</div>', unsafe_allow_html=True)
-    # Grid responsivo; usamos columns para respetar use_container_width
     st.markdown('<div class="chipgrid">', unsafe_allow_html=True)
-    cols = st.columns(6)  # slots lógicos; el CSS hace el auto-fit real
+    cols = st.columns(6)
     for i, t in enumerate(lista_temas):
         with cols[i % 6]:
             if st.button(t, key=f"{prefix_key}_{t}", use_container_width=True):
@@ -455,7 +445,7 @@ def chip_row(titulo: str, lista_temas: list, prefix_key: str):
     st.markdown('</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-st.markdown("### 📚 Acceso rápido por tema")
+st.markdown("### 🧬 Familia Orgánica")
 chip_row("Temas base", TEMAS_BASE, "chip_base")
 chip_row("Grupos especiales", TEMAS_ESPECIALES, "chip_esp")
 
@@ -468,7 +458,7 @@ tema = st.sidebar.selectbox(
     key="tema_select"
 )
 st.session_state["tema_idx"] = TEMAS.index(tema)
-tema = TEMAS[st.session_state["tema_idx"]]
+tema = TEMAS[st.session_state]["tema_idx"] if isinstance(st.session_state.get("tema_idx"), int) else tema
 
 # ================== CONTENIDO DEL TEMA ==================
 st.markdown(f"## CONTENIDO DEL TEMA — {tema}")
@@ -477,9 +467,12 @@ st.markdown('<div class="card">', unsafe_allow_html=True)
 tabs = st.tabs(["📄 PDF Resúmenes", "📘 PDF Apuntes del profesor", "🎥 Videos (MP4 o enlace)", "🎧 Audios (MP3)"])
 
 # -------- UI helper: listado (link + eliminar/renombrar + embed opcional) --------
+def bucket_join_safe(*parts) -> str:
+    return "/".join(p.strip("/").replace("//","/") for p in parts)
+
 def render_list(bucket_name: str, tema: str, exts: set[str], media: str | None = None):
     can_edit = st.session_state["can_edit"]
-    folder = bucket_join(topic_prefix(tema), bucket_name)
+    folder = bucket_join_safe(f"{COURSE_ROOT}/{safe_folder(tema)}", bucket_name)
     objs = storage_list(folder)
     if not objs:
         st.info("No hay archivos cargados aún.")
@@ -491,11 +484,10 @@ def render_list(bucket_name: str, tema: str, exts: set[str], media: str | None =
         name = obj.get("name","")
         if not any(name.lower().endswith(e) for e in exts):
             continue
-        full_path = bucket_join(folder, name)
+        full_path = bucket_join_safe(folder, name)
         url = public_url(full_path)
         title = get_title(meta, bucket_name, name) or name
 
-        # fila compacta
         with st.container():
             st.markdown(
                 f'''
@@ -510,7 +502,6 @@ def render_list(bucket_name: str, tema: str, exts: set[str], media: str | None =
                 </div>
                 ''', unsafe_allow_html=True
             )
-            # reproductor en línea si aplica
             if url and media == "video":
                 st.video(_encode_url(url))
             elif url and media == "audio":
@@ -545,7 +536,7 @@ with tabs[0]:
             if too_big(up):
                 st.error(f"El archivo ({human_mb(up.size)}) supera {MAX_UPLOAD_MB} MB. Comprimilo o subilo como enlace.")
             else:
-                dst = bucket_join(topic_prefix(tema), "resumenes", f"{int(time.time())}_{safe_filename(up.name)}")
+                dst = bucket_join_safe(f"{COURSE_ROOT}/{safe_folder(tema)}", "resumenes", f"{int(time.time())}_{safe_filename(up.name)}")
                 storage_upload(dst, up.read(), content_type="application/pdf")
                 if titulo_pdf.strip():
                     meta = read_meta(tema)
@@ -567,12 +558,12 @@ with tabs[1]:
             if too_big(up):
                 st.error(f"El archivo ({human_mb(up.size)}) supera {MAX_UPLOAD_MB} MB. Comprimilo o subilo como enlace.")
             else:
-                dst = bucket_join(topic_prefix(tema), "apuntes", f"{int(time.time())}_{safe_filename(up.name)}")
+                dst = bucket_join_safe(f"{COURSE_ROOT}/{safe_folder(tema)}", "apuntes", f"{int(time.time())}_{safe_filename(up.name)}")
                 storage_upload(dst, up.read(), content_type="application/pdf")
                 if titulo_pdf.strip():
                     meta = read_meta(tema)
                     set_title(meta, "apuntes", dst.split("/")[-1], titulo_pdf.strip())
-                    write_meta(tema, meta)  # fix: usamos tema correctamente
+                    write_meta(tema, meta)
                 st.success(f"Subido: {up.name}")
     render_list("apuntes", tema, exts={".pdf"})
 
@@ -581,7 +572,6 @@ with tabs[2]:
     st.subheader(f"Videos — {tema}")
     meta = read_meta(tema)
 
-    # a) MP4 a Storage
     if st.session_state["can_edit"]:
         c1, c2 = st.columns([2,3])
         with c1:
@@ -592,14 +582,13 @@ with tabs[2]:
             if too_big(up):
                 st.error(f"El video ({human_mb(up.size)}) supera {MAX_UPLOAD_MB} MB. Subilo como enlace (YouTube/Drive/Zoom) o recomprimilo (720p).")
             else:
-                dst = bucket_join(topic_prefix(tema), "videos", f"{int(time.time())}_{safe_filename(up.name)}")
+                dst = bucket_join_safe(f"{COURSE_ROOT}/{safe_folder(tema)}", "videos", f"{int(time.time())}_{safe_filename(up.name)}")
                 storage_upload(dst, up.read(), content_type="video/mp4")
                 if titulo_mp4.strip():
                     set_title(meta, "videos", dst.split("/")[-1], titulo_mp4.strip())
                     write_meta(tema, meta)
                 st.success(f"Subido: {up.name}")
 
-    # b) Enlaces externos (YouTube/Drive/Zoom)
     links = meta.get("video_links", [])
     if st.session_state["can_edit"]:
         st.markdown("##### Agregar enlace (YouTube/Drive/Zoom)")
@@ -615,7 +604,6 @@ with tabs[2]:
             else:
                 st.error("Pegá una URL válida.")
 
-    # Mostrar material
     render_list("videos", tema, exts={".mp4"}, media="video")
     if links:
         st.markdown("##### Enlaces")
@@ -640,7 +628,7 @@ with tabs[2]:
                         st.success("Enlace eliminado.")
                         st.rerun()
     else:
-        if not storage_list(bucket_join(topic_prefix(tema), "videos")):
+        if not storage_list(bucket_join_safe(f"{COURSE_ROOT}/{safe_folder(tema)}", "videos")):
             st.info("Todavía no hay videos cargados.")
 
 # ================== TAB 4: AUDIOS ==================
@@ -656,7 +644,7 @@ with tabs[3]:
             if too_big(up):
                 st.error(f"El audio ({human_mb(up.size)}) supera {MAX_UPLOAD_MB} MB. Comprimilo (mp3 ~128 kbps) o subilo como enlace.")
             else:
-                dst = bucket_join(topic_prefix(tema), "audios", f"{int(time.time())}_{safe_filename(up.name)}")
+                dst = bucket_join_safe(f"{COURSE_ROOT}/{safe_folder(tema)}", "audios", f"{int(time.time())}_{safe_filename(up.name)}")
                 mime = {
                     ".mp3":"audio/mpeg", ".wav":"audio/wav", ".m4a":"audio/mp4", ".ogg":"audio/ogg"
                 }.get(Path(up.name).suffix.lower(), "application/octet-stream")
@@ -671,5 +659,5 @@ with tabs[3]:
 st.markdown('</div>', unsafe_allow_html=True)  # cierra .card
 
 # ================== PIE ==================
-st.markdown("---")
+st.markdown('<div class="thin-sep"></div>', unsafe_allow_html=True)
 st.caption(" ")
