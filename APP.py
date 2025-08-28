@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 import io, os, json, time, tempfile, unicodedata, re
 from pathlib import Path
+from urllib.parse import urlsplit, urlunsplit, quote
 import streamlit as st
 
 # ================== CONFIG BÁSICA ==================
@@ -42,12 +43,12 @@ div[role="tablist"] button { border-radius: 10px !important; }
 # ================== SUPABASE CLIENT ==================
 from supabase import create_client, Client
 try:
-    # Algunas versiones exponen la excepción acá
+    # Según versión puede existir este submódulo
     from storage3.exceptions import StorageApiError
 except Exception:
-    # Fallback si no existe el submódulo
     class StorageApiError(Exception):
         pass
+import storage3  # para capturar storage3.utils.StorageException
 
 supa: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
@@ -67,9 +68,8 @@ with st.expander("🛠️ Diagnóstico Supabase", expanded=False):
     except Exception as e:
         st.error("Error listando raíz del bucket (¿nombre mal escrito o bucket inexistente?).")
         st.code(repr(e))
-    # versiones
-    import storage3, supabase as _supabase_pkg
-    st.caption(f"supabase-py: {getattr(_supabase_pkg, '__version__', 'unknown')} | storage3: {getattr(storage3, '__version__', 'unknown')}")
+    import storage3 as _s3, supabase as _sb
+    st.caption(f"supabase-py: {getattr(_sb, '__version__', 'unknown')} | storage3: {getattr(_s3, '__version__', 'unknown')}")
 
 # ================== HELPERS ==================
 def safe_folder(name: str) -> str:
@@ -78,11 +78,21 @@ def safe_folder(name: str) -> str:
     s = re.sub(r"[^a-z0-9\-_]", "", s)
     return s
 
+def safe_filename(name: str) -> str:
+    s = unicodedata.normalize("NFKD", name).encode("ascii","ignore").decode("ascii")
+    s = s.strip().replace(" ", "_")
+    return re.sub(r"[^\w\.\-]", "_", s)  # permite letras/números/_ . -
+
 def topic_prefix(tema: str) -> str:
     return f"{COURSE_ROOT}/{safe_folder(tema)}"
 
 def bucket_join(*parts) -> str:
     return "/".join(p.strip("/").replace("//","/") for p in parts)
+
+def _encode_url(u: str) -> str:
+    parts = urlsplit(u)
+    path = quote(parts.path)
+    return urlunsplit((parts.scheme, parts.netloc, path, parts.query, parts.fragment))
 
 def storage_list(folder_path: str):
     try:
@@ -90,31 +100,44 @@ def storage_list(folder_path: str):
     except Exception:
         return []
 
-# ⬇️ FIX: subir usando archivo temporal + headers en string
+# ⬇️ Upload robusto (captura StorageException) + sanea ruta
 def storage_upload(dst_path: str, data_bytes: bytes, content_type: str):
+    dst_path = re.sub(r"[^\w\-/\.]", "_", dst_path)
     with tempfile.NamedTemporaryFile(delete=False) as tmp:
         tmp.write(data_bytes)
         tmp.flush()
         tmp_path = tmp.name
     try:
         try:
-            # ✅ headers como strings (evita TypeError en httpx) + x-upsert
             return supa.storage.from_(SUPABASE_BUCKET).upload(
                 dst_path,
                 tmp_path,
                 {"content-type": str(content_type), "cache-control": "3600", "x-upsert": "true"},
             )
-        except StorageApiError as e:
-            # Si POST falla (conflicto al existir el objeto o política), intentamos PUT/update
+        except (StorageApiError, storage3.utils.StorageException, Exception) as e:
+            try:
+                info = (e.args or [{}])[0]
+                status = info.get("statusCode")
+                msg = info.get("message") or info.get("error") or info
+                st.warning(f"Upload falló (status={status}). Intento update(). Detalle: {msg}")
+            except Exception:
+                st.warning(f"Upload falló. Intento update(). Detalle: {repr(e)}")
             try:
                 return supa.storage.from_(SUPABASE_BUCKET).update(
                     dst_path,
                     tmp_path,
                     {"content-type": str(content_type), "cache-control": "3600"},
                 )
-            except Exception as e2:
-                st.error("Falló upload y update. Revisá bucket/clave/permisos.")
-                st.code(f"upload err: {repr(e)}\nupdate err: {repr(e2)}")
+            except (StorageApiError, storage3.utils.StorageException, Exception) as e2:
+                try:
+                    info2 = (e2.args or [{}])[0]
+                    status2 = info2.get("statusCode")
+                    msg2 = info2.get("message") or info2.get("error") or info2
+                    st.error(f"Update también falló (status={status2}).")
+                    st.code(json.dumps(info2, ensure_ascii=False, indent=2))
+                except Exception:
+                    st.error("Update también falló.")
+                    st.code(repr(e2))
                 raise
     finally:
         try:
@@ -225,7 +248,6 @@ def render_list(bucket_name: str, tema: str, exts: set[str], media: str | None =
     can_edit = st.session_state["can_edit"]
     folder = bucket_join(topic_prefix(tema), bucket_name)
     objs = storage_list(folder)
-
     if not objs:
         st.info("No hay archivos cargados aún.")
         return
@@ -245,12 +267,12 @@ def render_list(bucket_name: str, tema: str, exts: set[str], media: str | None =
             st.write(f"**{title}**")
             st.caption(name)
             if url and media == "video":
-                st.video(url)
+                st.video(_encode_url(url))
             elif url and media == "audio":
-                st.audio(url)
+                st.audio(_encode_url(url))
         with cols[1]:
             if url:
-                st.markdown(f"[Abrir / Descargar]({url})")
+                st.markdown(f"[Abrir / Descargar]({_encode_url(url)})")
         if can_edit:
             with cols[2]:
                 new_title = st.text_input("Título", value=title if title != name else "",
@@ -276,7 +298,7 @@ with tabs[0]:
         with c2:
             titulo_pdf = st.text_input("Título (opcional) para el PDF", key=f"res_title_{tema}")
         if up is not None:
-            dst = bucket_join(topic_prefix(tema), "resumenes", f"{int(time.time())}_{up.name}")
+            dst = bucket_join(topic_prefix(tema), "resumenes", f"{int(time.time())}_{safe_filename(up.name)}")
             storage_upload(dst, up.read(), content_type="application/pdf")
             if titulo_pdf.strip():
                 meta = read_meta(tema)
@@ -295,7 +317,7 @@ with tabs[1]:
         with c2:
             titulo_pdf = st.text_input("Título (opcional) para el PDF", key=f"apu_title_{tema}")
         if up is not None:
-            dst = bucket_join(topic_prefix(tema), "apuntes", f"{int(time.time())}_{up.name}")
+            dst = bucket_join(topic_prefix(tema), "apuntes", f"{int(time.time())}_{safe_filename(up.name)}")
             storage_upload(dst, up.read(), content_type="application/pdf")
             if titulo_pdf.strip():
                 meta = read_meta(tema)
@@ -317,7 +339,7 @@ with tabs[2]:
         with c2:
             titulo_mp4 = st.text_input("Título (opcional) del video", key=f"vid_title_{tema}")
         if up is not None:
-            dst = bucket_join(topic_prefix(tema), "videos", f"{int(time.time())}_{up.name}")
+            dst = bucket_join(topic_prefix(tema), "videos", f"{int(time.time())}_{safe_filename(up.name)}")
             storage_upload(dst, up.read(), content_type="video/mp4")
             if titulo_mp4.strip():
                 set_title(meta, "videos", dst.split("/")[-1], titulo_mp4.strip())
@@ -371,7 +393,7 @@ with tabs[3]:
         with c2:
             titulo_aud = st.text_input("Título (opcional) del audio", key=f"aud_title_{tema}")
         if up is not None:
-            dst = bucket_join(topic_prefix(tema), "audios", f"{int(time.time())}_{up.name}")
+            dst = bucket_join(topic_prefix(tema), "audios", f"{int(time.time())}_{safe_filename(up.name)}")
             mime = {
                 ".mp3":"audio/mpeg", ".wav":"audio/wav", ".m4a":"audio/mp4", ".ogg":"audio/ogg"
             }.get(Path(up.name).suffix.lower(), "application/octet-stream")
