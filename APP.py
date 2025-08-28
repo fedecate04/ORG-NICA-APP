@@ -45,135 +45,159 @@ SUPABASE_BUCKET = st.secrets.get("SUPABASE_BUCKET", "utn")
 COURSE_ROOT     = st.secrets.get("COURSE_ROOT", "Quimica_Organica")
 PASSCODE        = st.secrets.get("PASSCODE", "FFCC")
 
-# ================== ESTILO (claro institucional) ==================
-st.markdown("""
+# ================== ESTILO (UTN compacto) ==================
+st.markdown(f"""
 <style>
-:root{
-  --bg:#f5f8ff;          /* fondo principal claro */
-  --panel:#ffffff;       /* tarjetas/paneles */
-  --soft:#f0f4ff;        /* resaltado suave */
-  --text:#0f172a;        /* texto principal (slate-900) */
-  --muted:#51607a;       /* texto secundario */
-  --accent:#1e40af;      /* indigo-800 */
-  --accent-2:#3b82f6;    /* blue-500 */
-  --border:#dfe7f5;      /* borde suave */
-}
-html, body, .stApp { background: var(--bg); color: var(--text); }
-.block-container { padding-top: .8rem; }
+:root{{
+  --bg:#f7f7fb;
+  --panel:#ffffff;
+  --soft:#f1f3f9;
+  --text:#0b1221;
+  --muted:#5b6579;
+  --accent:#1f2a44;      /* UTN dark blue */
+  --accent-2:#2e5aac;    /* UTN medium blue */
+  --border:#e6e8f0;
+  --radius:10px;
+  --radius-lg:12px;
+}}
 
-/* Sidebar */
-[data-testid="stSidebar"] {
-  background: #ffffff;
+html, body, .stApp {{ background: var(--bg); color: var(--text); }}
+
+/* Contenedor más angosto y compacto */
+.block-container {{
+  padding-top: .6rem;
+  padding-bottom: .8rem;
+  max-width: 1180px;
+}}
+
+[data-testid="stSidebar"] {{
+  background: var(--panel);
   border-right: 1px solid var(--border);
-}
+}}
 
-/* Tipografías */
-h1,h2,h3,h4 { color: var(--text) !important; }
-p, span, label, .stMarkdown, .stTextInput label { color: var(--text) !important; }
-.caption, .small { color: var(--muted) !important; }
+h1,h2,h3,h4 {{ color: var(--text) !important; letter-spacing:.1px; }}
+p, span, label, .stMarkdown, .stTextInput label {{ color: var(--text) !important; }}
+.small, .caption {{ color: var(--muted) !important; }}
 
-/* Acordeones y alertas */
-[data-testid="stExpander"] {
+hr, .stMarkdown hr {{ border: none; height:1px; background: linear-gradient(90deg, transparent, var(--border), transparent); }}
+
+.st-emotion-cache-1n76uvr, .st-emotion-cache-1v0mbdj {{ background: transparent !important; }}
+
+/* ---- Hero más chico ---- */
+.hero {{ text-align:center; margin: 6px 0 6px 0; }}
+.hero img {{ max-width: 360px; margin: 0 auto; display:block; }}
+.hero .inst {{ margin-top:.35rem; line-height:1.15; }}
+.hero .inst .u {{ font-weight:700; letter-spacing:.3px; }}
+.hero .inst .f {{ color:#1f2a44; }}
+.hero .inst .c {{ margin-top:.15rem; font-weight:700; color: var(--accent-2); }}
+.hero .meta {{ margin-top:.2rem; color:#2b3a57; font-size:.95rem; }}
+
+/* ---- Banner edición ---- */
+.edit-banner{{
+  background:#e6edff;
+  border:1px solid #d5defb;
+  color:#263b80;
+  padding:6px 10px;
+  border-radius:var(--radius);
+  margin:.2rem 0 .5rem 0;
+}}
+
+/* ---- Card más compacta ---- */
+.card {{
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 12px 14px;
+  box-shadow: 0 1px 2px rgba(15,23,42,.05);
+}}
+
+/* ---- Tabs sobrios ---- */
+div[role="tablist"] {{ gap:.35rem; }}
+div[role="tablist"] button {{
+  background: #fafbff !important;
+  color: var(--muted) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius) !important;
+  padding: .35rem .7rem !important;
+  font-size: .95rem !important;
+}}
+div[role="tablist"] button[aria-selected="true"]{{
+  color: var(--text) !important;
+  background: #ffffff !important;
+  border-color: var(--accent-2) !important;
+  box-shadow: 0 0 0 2px rgba(46,90,172,.10);
+}}
+
+/* ---- Botones UTN ---- */
+.stButton>button, .stDownloadButton>button {{
+  background: var(--accent);
+  color: #ffffff;
+  border: 1px solid #182238;
+  border-radius: var(--radius);
+  padding: .42rem .8rem;
+  transition: background .12s ease, transform .04s ease;
+  font-weight: 600;
+}}
+.stButton>button:hover, .stDownloadButton>button:hover {{ background: var(--accent-2); }}
+.stButton>button:active {{ transform: translateY(1px); }}
+
+/* ---- Inputs compactos ---- */
+.stTextInput>div>div>input, .stTextArea textarea, .stSelectbox div[data-baseweb="select"] {{
+  background: #ffffff !important;
+  color: var(--text) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius) !important;
+  padding:.45rem .6rem !important;
+}}
+.stTextInput>div>div>input:focus, .stTextArea textarea:focus {{
+  border-color: var(--accent-2) !important;
+  box-shadow: 0 0 0 2px rgba(46,90,172,.12);
+}}
+
+/* ---- Expander/Alert sobrios ---- */
+[data-testid="stExpander"] {{
   border: 1px solid var(--border);
   background: var(--panel);
-  border-radius: 12px;
-}
-[data-testid="stAlert"]{
+  border-radius: var(--radius-lg);
+}}
+[data-testid="stAlert"]{{
   background: var(--soft) !important;
   border:1px solid var(--border) !important;
   color:var(--text) !important;
-  border-radius:12px !important;
-}
+  border-radius:var(--radius-lg) !important;
+}}
 
-/* Tabs de recursos */
-div[role="tablist"] {
-  gap: .5rem;
-}
-div[role="tablist"] button {
-  background: #f8faff !important;
-  color: var(--muted) !important;
-  border: 1px solid var(--border) !important;
-  border-radius: 10px !important;
-}
-div[role="tablist"] button[aria-selected="true"]{
-  color: var(--text) !important;
-  background: #ffffff !important;
-  border-color: var(--accent) !important;
-  box-shadow: 0 0 0 2px rgba(30,64,175,.15);
-}
-
-/* Botones */
-.stButton>button, .stDownloadButton>button {
-  background: #1e40af;
-  color: #ffffff;
-  border: 1px solid #1e3a8a;
-  border-radius: 10px;
-  padding: .5rem .9rem;
-  transition: background .15s ease, transform .05s ease;
-}
-.stButton>button:hover, .stDownloadButton>button:hover { background: #1d4ed8; }
-.stButton>button:active { transform: translateY(1px); }
-
-/* Inputs */
-.stTextInput>div>div>input, .stTextArea textarea, .stSelectbox div[data-baseweb="select"] {
-  background: #ffffff !important;
-  color: var(--text) !important;
-  border: 1px solid var(--border) !important;
-  border-radius: 10px !important;
-}
-.stTextInput>div>div>input:focus, .stTextArea textarea:focus {
-  border-color: var(--accent) !important;
-  box-shadow: 0 0 0 2px rgba(30,64,175,.15);
-}
-
-/* Links y separadores */
-a { color: #1d4ed8; text-decoration: none; }
-a:hover { text-decoration: underline; }
-hr, .stMarkdown hr { border: none; height:1px; background: linear-gradient(90deg, transparent, var(--border), transparent); }
-
-/* ====== Hero centrado ====== */
-.hero { text-align:center; margin: 10px 0 6px 0; }
-.hero img { max-width: 620px; margin: 0 auto; display:block; }
-.hero .inst { margin-top:.6rem; line-height: 1.2; }
-.hero .inst .u { font-weight:700; letter-spacing:.3px; }
-.hero .inst .f { color: #1f2a44; }
-.hero .inst .c { margin-top:.25rem; font-weight:700; color: var(--accent); }
-.hero .meta { margin-top:.4rem; color:#2b3a57; }
-
-/* ====== Chips (dos filas) ====== */
-.chipbar { display:flex; flex-wrap:wrap; gap:.5rem; }
-.chipbar .title { width:100%; font-weight:700; margin:.2rem 0 .3rem 0; color:#1f2a44; }
-.chipbar .chip button {
-  background: #f2f6ff;
+/* ---- Chips / Temas (grid responsivo) ---- */
+.chipbar {{ margin-top:.2rem; }}
+.chipbar .title {{ font-weight:700; margin:.1rem 0 .35rem 0; color:#1f2a44; }}
+.chipgrid {{
+  display:grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+}}
+.chipgrid .chipbtn {{
+  width: 100%;
+  background: #f3f5f9;
   border: 1px solid var(--border);
-  padding: .38rem .8rem;
-  font-size: .95rem;
-  border-radius: 18px;
+  padding: .42rem .6rem;
+  font-size: .92rem;
+  border-radius: 16px;
   color: var(--text);
-}
-.chipbar .chip button:hover { background:#eef3ff; border-color: var(--accent-2); }
+  text-align:center;
+}}
+.chipgrid .chipbtn:hover {{ background:#eef2f9; border-color: var(--accent-2); }}
 
-/* Tarjeta contenedora de "Contenido del tema" */
-.card {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 16px 18px;
-  box-shadow: 0 1px 2px rgba(15,23,42,.06);
-}
-
-/* Banner de modo edición */
-.edit-banner{
-  background:#e0e7ff;
-  border:1px solid #c7d2fe;
-  color:#1e40af;
-  padding:8px 12px;
-  border-radius:10px;
-  margin:.2rem 0 .6rem 0;
-}
-
-/* Ocultar fondos grises de ciertos contenedores */
-.st-emotion-cache-1n76uvr, .st-emotion-cache-1v0mbdj { background: transparent !important; }
+/* ---- Filas de recursos compactas ---- */
+.res-row {{
+  display:flex; align-items:center; gap:10px;
+  padding:.45rem .55rem; border:1px solid var(--border);
+  border-radius: var(--radius); background:#fff;
+  margin-bottom:6px;
+}}
+.res-row:hover {{ background:#fafbff; }}
+.res-title {{ font-weight:600; }}
+.res-meta {{ color:var(--muted); font-size:.9rem; }}
+.res-actions a {{ margin-left:10px; }}
 </style>
 """, unsafe_allow_html=True)
 
@@ -403,35 +427,32 @@ Esta interfaz te permite **organizar y acceder** al material didáctico de **Qu�
 
 with st.expander("🌎 Introducción: ¿por qué importa la Química Orgánica?", expanded=False):
     st.markdown("""
-La **Química Orgánica** estudia los compuestos del **carbono**, el elemento que mejor **construye estructuras** en cadena, anillos y redes.  
-Su versatilidad explica por qué está en el corazón de casi todo lo que nos rodea:
+La **Química Orgánica** estudia los compuestos del **carbono**.
+- **Vida y salud**: biomoléculas y fármacos.  
+- **Energía y materiales**: hidrocarburos y polímeros.  
+- **Industria**: refino, petroquímica, alimentos, cosmética y más.
 
-- **Vida y salud**: biomoléculas como **aminoácidos**, **carbohidratos** y **lípidos** sostienen los procesos vitales; los **fármacos** son, en su mayoría, moléculas orgánicas diseñadas con precisión.
-- **Energía y materiales**: desde **hidrocarburos** en petróleo y gas hasta **polímeros** avanzados y **nanomateriales** funcionales.
-- **Industria**: refino, petroquímica, síntesis fina, alimentos, cosmética, electrónica y energías alternativas dependen de reacciones y **mecanismos orgánicos** controlados.
-
-Dominar sus **estructuras**, **propiedades** y **mecanismos de reacción** te permite **predecir** y **diseñar**: desde un mecanismo **SEAr** en aromáticos hasta una **hidroboración-oxidación** en alquenos.  
-Ese lenguaje molecular es la herramienta central de la **ingeniería química moderna**.
+Dominar **estructuras** y **mecanismos** permite **predecir y diseñar** transformaciones.
     """)
 
 st.markdown("---")
 
-# ====== ACCESO RÁPIDO POR TEMA (dos filas con chips) ======
+# ====== ACCESO RÁPIDO POR TEMA (grid responsivo) ======
 if "tema_idx" not in st.session_state:
     st.session_state["tema_idx"] = 0
 
 def chip_row(titulo: str, lista_temas: list, prefix_key: str):
     st.markdown('<div class="chipbar">', unsafe_allow_html=True)
     st.markdown(f'<div class="title">{titulo}</div>', unsafe_allow_html=True)
-    cols_per_row = 8
+    # Grid responsivo; usamos columns para respetar use_container_width
+    st.markdown('<div class="chipgrid">', unsafe_allow_html=True)
+    cols = st.columns(6)  # slots lógicos; el CSS hace el auto-fit real
     for i, t in enumerate(lista_temas):
-        if i % cols_per_row == 0:
-            cols = st.columns(cols_per_row)
-        idx = i % cols_per_row
-        with cols[idx]:
-            if st.button(t, key=f"{prefix_key}_{t}"):
+        with cols[i % 6]:
+            if st.button(t, key=f"{prefix_key}_{t}", use_container_width=True):
                 st.session_state["tema_idx"] = TEMAS.index(t)
                 st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
 st.markdown("### 📚 Acceso rápido por tema")
@@ -474,31 +495,42 @@ def render_list(bucket_name: str, tema: str, exts: set[str], media: str | None =
         url = public_url(full_path)
         title = get_title(meta, bucket_name, name) or name
 
-        cols = st.columns([4, 2, 1, 1]) if can_edit else st.columns([6, 2])
-        with cols[0]:
-            st.write(f"**{title}**")
-            st.caption(name)
+        # fila compacta
+        with st.container():
+            st.markdown(
+                f'''
+                <div class="res-row">
+                  <div style="flex:1 1 auto; min-width:240px;">
+                    <div class="res-title">{title}</div>
+                    <div class="res-meta">{name}</div>
+                  </div>
+                  <div class="res-actions">
+                    {('<a href="'+_encode_url(url)+'">Abrir / Descargar</a>') if url else ''}
+                  </div>
+                </div>
+                ''', unsafe_allow_html=True
+            )
+            # reproductor en línea si aplica
             if url and media == "video":
                 st.video(_encode_url(url))
             elif url and media == "audio":
                 st.audio(_encode_url(url))
-        with cols[1]:
-            if url:
-                st.markdown(f"[Abrir / Descargar]({_encode_url(url)})")
-        if can_edit:
-            with cols[2]:
-                new_title = st.text_input("Título", value=title if title != name else "",
-                                          key=f"ttl_{bucket_name}_{name}")
-            with cols[3]:
-                if st.button("🗑️ Eliminar", key=f"del_{bucket_name}_{name}"):
-                    storage_remove([full_path])
-                    set_title(meta, bucket_name, name, "")
+
+            if can_edit:
+                c1, c2 = st.columns([5,1])
+                with c1:
+                    new_title = st.text_input("Título", value=title if title != name else "",
+                                              key=f"ttl_{bucket_name}_{name}")
+                with c2:
+                    if st.button("🗑️ Eliminar", key=f"del_{bucket_name}_{name}"):
+                        storage_remove([full_path])
+                        set_title(meta, bucket_name, name, "")
+                        write_meta(tema, meta)
+                        st.success(f"Eliminado: {name}")
+                        st.rerun()
+                if new_title != (title if title != name else ""):
+                    set_title(meta, bucket_name, name, new_title)
                     write_meta(tema, meta)
-                    st.success(f"Eliminado: {name}")
-                    st.rerun()
-            if new_title != (title if title != name else ""):
-                set_title(meta, bucket_name, name, new_title)
-                write_meta(tema, meta)
 
 # ================== TAB 1: RESÚMENES ==================
 with tabs[0]:
@@ -540,7 +572,7 @@ with tabs[1]:
                 if titulo_pdf.strip():
                     meta = read_meta(tema)
                     set_title(meta, "apuntes", dst.split("/")[-1], titulo_pdf.strip())
-                    write_meta(ema := tema, meta)  # guardar meta
+                    write_meta(tema, meta)  # fix: usamos tema correctamente
                 st.success(f"Subido: {up.name}")
     render_list("apuntes", tema, exts={".pdf"})
 
@@ -588,17 +620,16 @@ with tabs[2]:
     if links:
         st.markdown("##### Enlaces")
         for i, it in enumerate(links):
-            cols = st.columns([5,1]) if st.session_state["can_edit"] else st.columns([6])
+            cols = st.columns([6,1]) if st.session_state["can_edit"] else st.columns([6])
             with cols[0]:
                 titulo = (it.get("titulo") or "Video")
                 url_raw = (it.get("url") or "").strip()
                 url_norm = drive_preview_url(url_raw)
+                st.write(f"**{titulo}**")
                 if should_embed(url_norm):
-                    st.write(f"**{titulo}**")
                     st.video(url_norm)
                     st.markdown(f"[Abrir en pestaña]({_encode_url(url_norm)})")
                 else:
-                    st.write(f"**{titulo}**")
                     st.markdown(f"[Abrir enlace]({_encode_url(url_norm)})")
             if st.session_state["can_edit"]:
                 with cols[1]:
