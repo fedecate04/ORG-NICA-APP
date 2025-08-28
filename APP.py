@@ -1,3 +1,4 @@
+# APP.py
 # -*- coding: utf-8 -*-
 import io, os, json, time, tempfile, unicodedata, re
 from pathlib import Path
@@ -59,10 +60,12 @@ with st.expander("🛠️ Diagnóstico Supabase", expanded=False):
     except Exception as e:
         st.error("Error listando raíz del bucket (¿nombre mal escrito o bucket inexistente?).")
         st.code(repr(e))
+    # versiones
+    import storage3, supabase as _supabase_pkg
+    st.caption(f"supabase-py: {getattr(_supabase_pkg, '__version__', 'unknown')} | storage3: {getattr(storage3, '__version__', 'unknown')}")
 
 # ================== HELPERS ==================
 def safe_folder(name: str) -> str:
-    # quita tildes/ñ y caracteres raros
     s = unicodedata.normalize("NFKD", name).encode("ascii","ignore").decode("ascii")
     s = s.lower().replace(" ", "_")
     s = re.sub(r"[^a-z0-9\-_]", "", s)
@@ -80,7 +83,7 @@ def storage_list(folder_path: str):
     except Exception:
         return []
 
-# ⬇️ FIX: subir usando archivo temporal + file_options correctos
+# ⬇️ FIX: subir usando archivo temporal + headers en string
 def storage_upload(dst_path: str, data_bytes: bytes, content_type: str):
     with tempfile.NamedTemporaryFile(delete=False) as tmp:
         tmp.write(data_bytes)
@@ -88,19 +91,19 @@ def storage_upload(dst_path: str, data_bytes: bytes, content_type: str):
         tmp_path = tmp.name
     try:
         try:
-            # El SDK espera keys con guión_bajo: content_type, upsert, cache_control
+            # ✅ headers como strings (evita TypeError en httpx) + x-upsert
             return supa.storage.from_(SUPABASE_BUCKET).upload(
                 dst_path,
                 tmp_path,
-                {"content_type": content_type, "upsert": True, "cache_control": "3600"},
+                {"content-type": str(content_type), "cache-control": "3600", "x-upsert": "true"},
             )
         except StorageApiError as e:
-            # Si el endpoint no permite upsert por POST, probamos PUT/update (sobrescribe)
+            # Si POST falla (conflicto al existir el objeto o política), intentamos PUT/update
             try:
                 return supa.storage.from_(SUPABASE_BUCKET).update(
                     dst_path,
                     tmp_path,
-                    {"content_type": content_type, "cache_control": "3600"},
+                    {"content-type": str(content_type), "cache-control": "3600"},
                 )
             except Exception as e2:
                 st.error("Falló upload y update. Revisá bucket/clave/permisos.")
