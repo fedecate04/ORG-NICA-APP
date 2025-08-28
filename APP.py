@@ -41,7 +41,14 @@ div[role="tablist"] button { border-radius: 10px !important; }
 
 # ================== SUPABASE CLIENT ==================
 from supabase import create_client, Client
-from storage3.exceptions import StorageApiError
+try:
+    # Algunas versiones exponen la excepción acá
+    from storage3.exceptions import StorageApiError
+except Exception:
+    # Fallback si no existe el submódulo
+    class StorageApiError(Exception):
+        pass
+
 supa: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # ---------- Diagnóstico rápido ----------
